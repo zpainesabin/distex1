@@ -7,6 +7,11 @@
 #include <arpa/inet.h>
 
 
+int g_s;
+struct sockaddr_in g_to_addr;
+
+void ez_send(char * message, int size);
+
 int main(int argc, char *argv[]) {
   
   if (argc != 4) {
@@ -29,18 +34,18 @@ int main(int argc, char *argv[]) {
   //Code Copied from Yair's test.c
   sendto_dbg_init(loss_percent);
   
-  int rate, s, i;
-  struct sockaddr_in to_addr;
+  int rate, i;
   struct hostent h_ent;
   struct hostent *p_h_ent;
   long host_num;
   char * buf = "hello";
 
-  s = socket(AF_INET, SOCK_DGRAM, 0);
-  if (s<0) {
+  g_s = socket(AF_INET, SOCK_DGRAM, 0);
+  if (g_s<0) {
     perror("Ucast: socket");
     exit(1);
   }
+  
 
   /* Get the IP address of the destination machine */
   p_h_ent = gethostbyname(dest_computer);
@@ -52,13 +57,20 @@ int main(int argc, char *argv[]) {
   memcpy( &h_ent, p_h_ent, sizeof(h_ent));
   memcpy( &host_num, h_ent.h_addr_list[0], sizeof(host_num) );
 
-  to_addr.sin_family = AF_INET;
-  to_addr.sin_addr.s_addr = host_num;
-  to_addr.sin_port = htons(10220); //10220
+  g_to_addr.sin_family = AF_INET;
+  g_to_addr.sin_addr.s_addr = host_num;
+  g_to_addr.sin_port = htons(10220); //10220
 
   for(i = 0; i < 10; i++) {
-    sendto_dbg(s, buf, 6, 0, (struct sockaddr *)&to_addr,
-               sizeof(to_addr));
+    ez_send(buf,6);
   }
 
  }
+
+void ez_send(char * message, int size) {
+  sendto_dbg(g_s, message, size, 0, (struct sockaddr *)&g_to_addr, sizeof(g_to_addr));
+}
+
+
+
+
