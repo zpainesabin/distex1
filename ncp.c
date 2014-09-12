@@ -5,7 +5,7 @@
 #include <netdb.h>
 #include <unistd.h>
 #include <arpa/inet.h>
-
+#include "net_include.h"
 
 int g_s;
 struct sockaddr_in g_to_addr;
@@ -59,7 +59,7 @@ int main(int argc, char *argv[]) {
 
   g_to_addr.sin_family = AF_INET;
   g_to_addr.sin_addr.s_addr = host_num;
-  g_to_addr.sin_port = htons(10220); //10220
+  g_to_addr.sin_port = htons(PORT); //10220
 
   for(i = 0; i < 10; i++) {
     ez_send(buf,6);
