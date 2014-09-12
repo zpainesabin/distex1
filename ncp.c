@@ -25,6 +25,8 @@ int main(int argc, char *argv[]) {
 
   printf("%i %s %s %s\n",loss_percent, source_file, dest_file_name, dest_computer);
 
+
+  //Code Copied from Yair's test.c
   sendto_dbg_init(loss_percent);
   
   int rate, s, i;
@@ -38,11 +40,7 @@ int main(int argc, char *argv[]) {
   if (s<0) {
     perror("Ucast: socket");
     exit(1);
-  } //Copied from Yair's test.c
-
-
-  to_addr.sin_family = AF_INET;
-  to_addr.sin_port = htons(10220);
+  }
 
   /* Get the IP address of the destination machine */
   p_h_ent = gethostbyname(dest_computer);
@@ -54,7 +52,9 @@ int main(int argc, char *argv[]) {
   memcpy( &h_ent, p_h_ent, sizeof(h_ent));
   memcpy( &host_num, h_ent.h_addr_list[0], sizeof(host_num) );
 
+  to_addr.sin_family = AF_INET;
   to_addr.sin_addr.s_addr = host_num;
+  to_addr.sin_port = htons(10220); //10220
 
   for(i = 0; i < 10; i++) {
     sendto_dbg(s, buf, 6, 0, (struct sockaddr *)&to_addr,
