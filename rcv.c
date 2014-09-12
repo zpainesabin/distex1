@@ -4,8 +4,17 @@
 
 int gethostname(char*,size_t);
 
-void PromptForHostName( char *my_name, char *host_name, size_t max_len ); 
+int ez_select();
 
+//void PromptForHostName( char *my_name, char *host_name, size_t max_len ); 
+
+    fd_set                mask;
+    fd_set                dummy_mask,temp_mask;
+    int                   sr;                
+    struct timeval        timeout;
+    timeout.tv_sec = 10;
+    timeout.tv_usec = 0;
+ 
 int main(int argc, char *argv[])
 {
 
@@ -20,14 +29,11 @@ int main(int argc, char *argv[])
     char                  my_name[NAME_LENGTH] = {'\0'};
     int                   host_num;
     int                   from_ip;
-    int                   ss,sr;
-    fd_set                mask;
-    fd_set                dummy_mask,temp_mask;
+    int                   ss;
     int                   bytes;
     int                   num;
     char                  mess_buf[MAX_MESS_LEN];
     char                  input_buf[80];
-    struct timeval        timeout;
     int                   loss_percent;
 
     if (argc < 2) {
@@ -46,7 +52,7 @@ int main(int argc, char *argv[])
 
     name.sin_family = AF_INET; 
     name.sin_addr.s_addr = INADDR_ANY; 
-    name.sin_port = htons(PORT);
+    name.sin_port = htons(PORT); //10220
 
     if ( bind( sr, (struct sockaddr *)&name, sizeof(name) ) < 0 ) {
         perror("Ucast: bind");
@@ -83,10 +89,7 @@ int main(int argc, char *argv[])
     FD_SET( (long)0, &mask ); /* stdin */
     for(;;)
     {
-        temp_mask = mask;
-        timeout.tv_sec = 10;
-        timeout.tv_usec = 0;
-        num = select( FD_SETSIZE, &temp_mask, &dummy_mask, &dummy_mask, &timeout);
+       num = ez_select();
         if (num > 0) {
             if ( FD_ISSET( sr, &temp_mask) ) {
                 from_len = sizeof(from_addr);
@@ -117,6 +120,12 @@ int main(int argc, char *argv[])
     }
 
     return 0;
+
+}
+
+int ez_select() {
+   temp_mask = mask;
+   return select(FD_SETSIZE, &temp_mask, &dummy_mask, &dummy_mask, &timeout);
 
 }
 
