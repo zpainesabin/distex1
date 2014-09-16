@@ -1,14 +1,14 @@
 #include "net_include.h"
+#include <string.h>
 
 #define NAME_LENGTH 80
 
-int gethostname(char*,size_t);
-
 int ez_select();
-
 int ez_receive();
+void ez_send(packet message);
 
-/*void PromptForHostName( char *my_name, char *host_name, size_t max_len );*/ 
+void setup();
+
 
     fd_set                mask;
     fd_set                dummy_mask,temp_mask;
@@ -23,7 +23,6 @@ int ez_receive();
     struct hostent        *p_h_ent;
     char                  host_name[NAME_LENGTH] = {'\0'};
     char                  my_name[NAME_LENGTH] = {'\0'};
-    int                   host_num;
     int                   from_ip;
     int                   ss;
     int                   bytes;
@@ -32,11 +31,19 @@ int ez_receive();
     char                  input_buf[80];
     int                   loss_percent;
 
+    struct                hostent h_ent;
 
+    typedef struct dummy_node {
+        int ip;
+        struct dummy_node *next;
+    } qNode;
+        
+    qNode   qHead;
+    qNode * qTail;
+ 
  
 int main(int argc, char *argv[])
 {
-    /*Much code taken from tutorial's Ucast cs437*/
     if (argc < 2) {
         printf("rcv loss_percent\n");
         exit(1);
@@ -45,6 +52,98 @@ int main(int argc, char *argv[])
     
     sendto_dbg_init(loss_percent);
 
+    setup(); /*all the one time setup for receiving and some other business*/
+
+    /*setup queue*/
+    qHead.next = NULL;
+    qTail = &qHead;
+
+    packet in_packet;
+    int i; /*for iterating for loops*/
+    int current_ip = 0;
+    int curr_index = 0; /*the index expected next*/
+    int window_size = 5; /*arbitrarily chosen default alue that shouldn't ever be used*/
+    packet ** window; /*WANT THIS TO BE AN ARRAY OF POINTERS TO PACKETS (SIZE UNKNOWN)!!!!!!!!!!!!!!!*/
+    for(;;)
+    { 
+        num = ez_select();
+        if (num > 0 && FD_ISSET(sr, &temp_mask)) {
+            /* WE RECEIVED SOMETHING*/
+            bytes = ez_receive(); /*sets mess_buf to received 'string', and from_addr to sender's address*/
+            from_ip = from_addr.sin_addr.s_addr;
+
+            if (from_ip != current_ip) {
+                if (current_ip == 0) { /*sevice him*/
+                    send_addr.sin_addr.s_addr = from_ip;
+                    current_ip = from_ip; 
+                    curr_index = 0; 
+                    /*Will fall down to the type 3 case below*/ 
+                } else { /*queue him*/
+                    qTail->next = malloc(sizeof(qNode));
+                    qTail = qTail->next;
+                    qTail->ip = from_ip;
+                    qTail->next = NULL;
+
+                    /*Send a nack*/
+                    packet nack;
+                    nack.packet_type = 2;
+                    ez_send(nack);
+                }        
+            }
+
+            in_packet = *((packet *) mess_buf);
+
+            if (in_packet.packet_type == 3) { /*initiator*/
+
+                /*INITIATOR PAYLOAD: "FILENAME|WINDOWSIZE"*/
+                char * init_load = in_packet.payload;
+                char * filename = strtok(init_load, "|");
+                window_size = atoi(strtok(NULL, "|"));                
+                window = malloc(window_size*sizeof(packet *));
+                for(i=0; i<window_size; i++) {
+                    window[i] = NULL; 
+                }
+                //OPEN FILE USING FILENAME (tmp folder)!!!!!!!!!!!!!!!!!!!!!
+
+                packet first_ack;
+                first_ack.packet_type = 1;
+                ez_send(first_ack); /*signals that rcv is ready*/
+            } else { /*it's data*/
+                if (in_packet.index == curr_index) {
+                    packet ack;
+                    ack.packet_type = 1;
+                    /*CHECK WHAT I HAVE TO SEE WHAT I SHOULD ACK!!!!!!!!!!!!!!!!!!*/
+                    ack.index = curr_index;
+                    ez_send(ack);
+                    
+                    /*WRITE WHAT I HAVE!!!!!!!!!!!!!!!!!!!!*/
+                    /*'MOVE WINDOW'!!!!!!!!!!!!!!!!!!!!!!!!!1*/
+                    
+
+                } else { /*missed something before what we just received*/
+                    /*store what we just got!!!!!!!!!!!!!!!!!!!!!1*/
+                    /*STORE ALL NACKS!!!!!!!!!!!!!!!!!!!!!*/
+                    packet nack;
+                    nack.index = curr_index-1;
+                    strcpy(nack.payload, "LIST OF NACKS!!!!!!!"); /*LIST NACKS!!!!!!!!!!!!!*/
+                    ez_send(nack);
+
+                }
+            }
+        } else if (num <= 0) {
+            printf(".");
+            fflush(0);
+        }
+    }
+    return 0;
+}
+
+
+
+void setup() {
+    /*Much code taken from tutorial's Ucast cs437*/
+
+    /*ONE TIME SETUP-------------------------------------------------------------*/
     sr = socket(AF_INET, SOCK_DGRAM, 0);  /* socket for receiving (udp) */
     if (sr<0) {
         perror("Ucast: socket");
@@ -60,68 +159,21 @@ int main(int argc, char *argv[])
         exit(1);
     }
 
-/* 
     ss = socket(AF_INET, SOCK_DGRAM, 0); // socket for sending (udp)
     if (ss<0) {
         perror("Ucast: socket");
         exit(1);
-    }
-*/  
+    }  
   
-/*    PromptForHostName(my_name,host_name,NAME_LENGTH);
-    
-    p_h_ent = gethostbyname(host_name);
-    if ( p_h_ent == NULL ) {
-        printf("Ucast: gethostbyname error.\n");
-        exit(1);
-    }
-
-    memcpy( &h_ent, p_h_ent, sizeof(h_ent));
-    memcpy( &host_num, h_ent.h_addr_list[0], sizeof(host_num) );
-*/
-/*
-    send_addr.sin_family = AF_INET;
-    send_addr.sin_addr.s_addr = host_num; 
-    send_addr.sin_port = htons(PORT);
-*/
     FD_ZERO( &mask );
     FD_ZERO( &dummy_mask );
     FD_SET( sr, &mask );
     FD_SET( (long)0, &mask ); /* stdin */
 
-/* AT THIS POINT WE ARE SET UP TO RECEIVE*/
-
-    packet in_packet;
-    for(;;)
-    { //printf("selecting\n");
-        num = ez_select();
-        if (num > 0 && FD_ISSET(sr, &temp_mask)) {
-            /* WE RECEIVED SOMETHING*/
-
-            bytes = ez_receive(); /*sets mess_buf to received string, and from_addr to sender's address*/
-            //mess_buf[bytes] = 0; /*0 acts as end of packet character*/
-            from_ip = from_addr.sin_addr.s_addr;
-
-            in_packet = *((packet *) mess_buf);
-            printf("%s\n", in_packet.payload);
-
-            //printf("%s\n", mess_buf);
-            /*printf( "Received from (%d.%d.%d.%d): %s\n", 
-                                (htonl(from_ip) & 0xff000000)>>24,
-                                (htonl(from_ip) & 0x00ff0000)>>16,
-                                (htonl(from_ip) & 0x0000ff00)>>8,
-                                (htonl(from_ip) & 0x000000ff),
-                                mess_buf );
-              */
-        } else if (num >0 && FD_ISSET(0, &temp_mask)) { printf("terminal");
-        } else if (num <= 0) {
-            printf(".");
-            fflush(0);
-        }
-    }
-
-    return 0;
-
+    send_addr.sin_family = AF_INET;
+    send_addr.sin_port = htons(PORT);
+ 
+/* AT THIS POINT WE ARE SET UP TO RECEIVE------------------------------------------------------*/
 }
 
 int ez_select() {
@@ -134,6 +186,10 @@ int ez_select() {
 int ez_receive() {
     from_len = sizeof(from_addr);
     return  recvfrom( sr, mess_buf, sizeof(mess_buf), 0, (struct sockaddr *)&from_addr, &from_len);
+}
+
+void ez_send(packet message) {
+  sendto_dbg(ss, (char*) &message, sizeof(packet), 0, (struct sockaddr *)&send_addr, sizeof(send_addr));
 }
  
 /*
