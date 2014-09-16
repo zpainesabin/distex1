@@ -94,9 +94,7 @@ int main(int argc, char *argv[])
 
     for(;;)
     {
-        timeout.tv_sec = 10;
-        timeout.tv_usec = 0;
-        num = ez_select();
+       num = ez_select();
         if (num > 0) {
             if ( FD_ISSET( sr, &temp_mask) ) {
                 /* WE RECEIVED SOMETHING*/
@@ -125,6 +123,8 @@ int main(int argc, char *argv[])
 
 int ez_select() {
     temp_mask = mask;
+    timeout.tv_sec = 10;
+    timeout.tv_usec = 0;
     return select(FD_SETSIZE, &temp_mask, &dummy_mask, &dummy_mask, &timeout);
 }
 
