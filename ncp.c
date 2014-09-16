@@ -11,6 +11,9 @@ int g_s;
 struct sockaddr_in g_to_addr;
 
 void ez_send(char * message, int size);
+packet getNextPacket();
+
+int cur_index = 0;
 
 int main(int argc, char *argv[]) {
   
@@ -62,7 +65,9 @@ int main(int argc, char *argv[]) {
   g_to_addr.sin_port = htons(PORT); /*10220*/
 
   for(i = 0; i < 10; i++) {
-    ez_send(buf,6);
+    packet temp = getNextPacket();
+    packet * temp_pointer = &temp;
+    ez_send((char *) temp_pointer, sizeof(packet));
   }
 
  }
@@ -71,6 +76,13 @@ void ez_send(char * message, int size) {
   sendto_dbg(g_s, message, size, 0, (struct sockaddr *)&g_to_addr, sizeof(g_to_addr));
 }
 
-
+packet getNextPacket() {
+  packet next;
+  next.index = cur_index;
+  next.packet_type = 0;
+  next.payload = "TestTestTestTest\0";
+  cur_index++;
+  return next;
+}
 
 
