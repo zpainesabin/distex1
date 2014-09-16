@@ -31,7 +31,7 @@ int main(int argc, char *argv[]) {
   printf("%i %s %s %s\n",loss_percent, source_file, dest_file_name, dest_computer);
 
 
-  //Code Copied from Yair's test.c
+  /*Code Copied from Yair's test.c*/
   sendto_dbg_init(loss_percent);
   
   int rate, i;
@@ -59,7 +59,7 @@ int main(int argc, char *argv[]) {
 
   g_to_addr.sin_family = AF_INET;
   g_to_addr.sin_addr.s_addr = host_num;
-  g_to_addr.sin_port = htons(PORT); //10220
+  g_to_addr.sin_port = htons(PORT); /*10220*/
 
   for(i = 0; i < 10; i++) {
     ez_send(buf,6);
