@@ -89,15 +89,14 @@ int main(int argc, char *argv[])
     FD_SET( sr, &mask );
     FD_SET( (long)0, &mask ); /* stdin */
 
-    timeout.tv_sec = 10;
-    timeout.tv_usec = 0;
-
 /* AT THIS POINT WE ARE SET UP TO RECEIVE*/
 
 
     for(;;)
     {
-       num = ez_select();
+        timeout.tv_sec = 10;
+        timeout.tv_usec = 0;
+        num = ez_select();
         if (num > 0) {
             if ( FD_ISSET( sr, &temp_mask) ) {
                 /* WE RECEIVED SOMETHING*/
