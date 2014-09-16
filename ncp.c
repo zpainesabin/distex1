@@ -18,14 +18,14 @@ void ez_send(char * message, int size);
 packet getNextPacket();
 
 int cur_index = 0;
-
+void  send_file(char * source_file);
 int gethostname(char*,size_t);
+int getRecvd(int acks[], int startIndex);
+int send_start_packet(char * dest_file_name);
 
 int ez_select();
 
 int ez_receive();
-
-int  send_start_packet(char * dest_file_name);
 
 /*void PromptForHostName( char *my_name, char *host_name, size_t max_len );*/
 
@@ -129,7 +129,7 @@ int main(int argc, char *argv[]) {
     printf("Starting transmission");
 
   }
-/*
+
   send_file(source_file);
 
 
@@ -160,29 +160,93 @@ int main(int argc, char *argv[]) {
       fflush(0);
     }
     }
-*/
+
  }
-/*
+
 void  send_file(char * source_file) {
 
   packet * window[WINDOW_SIZE];
-  for (int x=0; x<5; x++) {
+  int received[WINDOW_SIZE];
+  for (int x=0; x<WINDOW_SIZE; x++) {
     packet nextPacket = getNextPacket();
-    if (packet.packet_type == 9) {
+    if (nextPacket.packet_type == 9) {
       return;
     } else {
-      curr_packet_point = malloc(sizeof(packet));
+      packet * curr_packet_point = malloc(sizeof(packet));
       memcpy(curr_packet_point, &nextPacket, sizeof(packet));
       window[x] = curr_packet_point;
-  bool cont = true;
-  while (cont) {
-    packet nextPacket = getNextPacket();
-    if (packet.packet_type == 9) {
-      cont = false;
-    } else {
-      
+      received[x] = 0;
+    }
+  }
+    
+  int cont = 0;
+  while (cont == 0) {
+    int send_count = 0;
+    for (int x=0; x<WINDOW_SIZE; x++) {
+      if (received[x] == 0) {
+        ez_send((char *) window[x], sizeof(packet));
+      }
+    }
 
-*/
+    int acks[WINDOW_SIZE];
+    int sizeAcks;
+    sizeAcks = getRecvd(acks, window[0]->index);
+    int z=0;
+    for (int i=0; i<sizeAcks; i++) {
+      while (acks[i] > window[z]->index) {
+        z++;
+      }
+      if (window[z]->index == acks[i]) {
+        received[z] = 1;
+        z++;
+      }
+    }
+
+     while (received[0] == 1) {
+      free(window[0]);
+      for (int n=0; n<WINDOW_SIZE-1; n++) {
+        window[n] = window[n+1];
+        received[n] = received[n+1];
+      }
+      packet nextPacket = getNextPacket();
+      if (nextPacket.packet_type == 9) {
+        printf("DONE");
+        return;
+      }
+      packet * curr_packet_point = malloc(sizeof(packet));
+      memcpy(curr_packet_point, &nextPacket, sizeof(packet));
+      window[WINDOW_SIZE] = curr_packet_point;
+      received[WINDOW_SIZE] = 0;
+    }
+
+  }
+
+}
+
+int getRecvd(int acks[], int startIndex) {
+  int topIndex = 0;
+  for (int x=0; x<WINDOW_SIZE; x++) {
+    int num = ez_select();
+   if (num > 0 && FD_ISSET(sr, &temp_mask)) {
+      packet in_packet;
+      bytes = ez_receive();
+      from_ip = from_addr.sin_addr.s_addr;
+      in_packet = *((packet *) mess_buf);
+      if (in_packet.packet_type == 1) {
+        int z = in_packet.index - startIndex;
+        topIndex = z;
+        for (int i=0; i<=z; i++) {
+          acks[i] = startIndex + i;
+        } 
+      } else if (in_packet.packet_type == 2)  {
+        acks[topIndex] = in_packet.index;
+      }
+    }
+  }
+  return topIndex;
+}
+ 
+
 
 int send_start_packet(char * dest_file_name){
   int success = 0;
@@ -206,9 +270,9 @@ int send_start_packet(char * dest_file_name){
       } else {
         printf("Denied, entering waiting mode");
         //TODO WAIT FOR START ACK
+      }
     }
   }
-}
   return 1;
 }
 
@@ -228,8 +292,8 @@ packet getNextPacket() {
 
 int ez_select() {
     temp_mask = mask;
-    timeout.tv_sec = 2;
-    timeout.tv_usec = 0;
+    timeout.tv_sec = 0;
+    timeout.tv_usec = 100;
     return select(FD_SETSIZE, &temp_mask, &dummy_mask, &dummy_mask, &timeout);
 }
 
