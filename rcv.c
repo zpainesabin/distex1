@@ -91,30 +91,30 @@ int main(int argc, char *argv[])
 
 /* AT THIS POINT WE ARE SET UP TO RECEIVE*/
 
-
+    packet in_packet;
     for(;;)
-    {
-       num = ez_select();
-        if (num > 0) {
-            if ( FD_ISSET( sr, &temp_mask) ) {
-                /* WE RECEIVED SOMETHING*/
+    { //printf("selecting\n");
+        num = ez_select();
+        if (num > 0 && FD_ISSET(sr, &temp_mask)) {
+            /* WE RECEIVED SOMETHING*/
 
-               bytes = ez_receive(); /*sets mess_buf to received string, and from_addr to sender's address*/
-               mess_buf[bytes] = 0; /*0 acts as end of packet character*/
-               from_ip = from_addr.sin_addr.s_addr;
+            bytes = ez_receive(); /*sets mess_buf to received string, and from_addr to sender's address*/
+            //mess_buf[bytes] = 0; /*0 acts as end of packet character*/
+            from_ip = from_addr.sin_addr.s_addr;
 
-               packet in_packet = (packet *) mess_buf;
-               printf("%s\n", in_packet.payload);
+            in_packet = *((packet *) mess_buf);
+            printf("%s\n", in_packet.payload);
 
-               /*printf( "Received from (%d.%d.%d.%d): %s\n", 
+            //printf("%s\n", mess_buf);
+            /*printf( "Received from (%d.%d.%d.%d): %s\n", 
                                 (htonl(from_ip) & 0xff000000)>>24,
                                 (htonl(from_ip) & 0x00ff0000)>>16,
                                 (htonl(from_ip) & 0x0000ff00)>>8,
                                 (htonl(from_ip) & 0x000000ff),
                                 mess_buf );
               */
- }
-        } else {
+        } else if (num >0 && FD_ISSET(0, &temp_mask)) { printf("terminal");
+        } else if (num <= 0) {
             printf(".");
             fflush(0);
         }
