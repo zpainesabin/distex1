@@ -6,19 +6,15 @@ int gethostname(char*,size_t);
 
 int ez_select();
 
-//void PromptForHostName( char *my_name, char *host_name, size_t max_len ); 
+int ez_receive();
+
+/*void PromptForHostName( char *my_name, char *host_name, size_t max_len );*/ 
 
     fd_set                mask;
     fd_set                dummy_mask,temp_mask;
     int                   sr;                
     struct timeval        timeout;
-    timeout.tv_sec = 10;
-    timeout.tv_usec = 0;
- 
-int main(int argc, char *argv[])
-{
 
-    //Much code taken from tutorial's Ucast cs437
     struct sockaddr_in    name;
     struct sockaddr_in    send_addr;
     struct sockaddr_in    from_addr;
@@ -36,6 +32,11 @@ int main(int argc, char *argv[])
     char                  input_buf[80];
     int                   loss_percent;
 
+
+ 
+int main(int argc, char *argv[])
+{
+    /*Much code taken from tutorial's Ucast cs437*/
     if (argc < 2) {
         printf("rcv loss_percent\n");
         exit(1);
@@ -52,7 +53,7 @@ int main(int argc, char *argv[])
 
     name.sin_family = AF_INET; 
     name.sin_addr.s_addr = INADDR_ANY; 
-    name.sin_port = htons(PORT); //10220
+    name.sin_port = htons(PORT); /*10220*/
 
     if ( bind( sr, (struct sockaddr *)&name, sizeof(name) ) < 0 ) {
         perror("Ucast: bind");
@@ -87,17 +88,23 @@ int main(int argc, char *argv[])
     FD_ZERO( &dummy_mask );
     FD_SET( sr, &mask );
     FD_SET( (long)0, &mask ); /* stdin */
+
+    timeout.tv_sec = 10;
+    timeout.tv_usec = 0;
+
+/* AT THIS POINT WE ARE SET UP TO RECEIVE*/
+
+
     for(;;)
     {
        num = ez_select();
         if (num > 0) {
             if ( FD_ISSET( sr, &temp_mask) ) {
-                from_len = sizeof(from_addr);
-                bytes = recvfrom( sr, mess_buf, sizeof(mess_buf), 0,  
-                          (struct sockaddr *)&from_addr, 
-                          &from_len );
-                mess_buf[bytes] = 0;
-                from_ip = from_addr.sin_addr.s_addr;
+                /* WE RECEIVED SOMETHING*/
+
+               bytes = ez_receive(); /*sets mess_buf to received string, and from_addr to sender's address*/
+               mess_buf[bytes] = 0; /*0 acts as end of packet character*/
+               /* from_ip = from_addr.sin_addr.s_addr;
 
                 printf( "Received from (%d.%d.%d.%d): %s\n", 
                                 (htonl(from_ip) & 0xff000000)>>24,
@@ -105,14 +112,8 @@ int main(int argc, char *argv[])
                                 (htonl(from_ip) & 0x0000ff00)>>8,
                                 (htonl(from_ip) & 0x000000ff),
                                 mess_buf );
-
-  /*          }else if( FD_ISSET(0, &temp_mask) ) {
-                bytes = read( 0, input_buf, sizeof(input_buf) );
-                input_buf[bytes] = 0;
-                printf( "There is an input: %s\n", input_buf );
-                sendto_dbg( ss, input_buf, strlen(input_buf), 0, 
-                    (struct sockaddr *)&send_addr, sizeof(send_addr) );
-   */         }
+              */
+ }
         } else {
             printf(".");
             fflush(0);
@@ -124,11 +125,15 @@ int main(int argc, char *argv[])
 }
 
 int ez_select() {
-   temp_mask = mask;
-   return select(FD_SETSIZE, &temp_mask, &dummy_mask, &dummy_mask, &timeout);
-
+    temp_mask = mask;
+    return select(FD_SETSIZE, &temp_mask, &dummy_mask, &dummy_mask, &timeout);
 }
 
+int ez_receive() {
+    from_len = sizeof(from_addr);
+    return  recvfrom( sr, mess_buf, sizeof(mess_buf), 0, (struct sockaddr *)&from_addr, &from_len);
+}
+ 
 /*
 void PromptForHostName( char *my_name, char *host_name, size_t max_len ) {
 
