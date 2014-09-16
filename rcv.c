@@ -101,9 +101,12 @@ int main(int argc, char *argv[])
 
                bytes = ez_receive(); /*sets mess_buf to received string, and from_addr to sender's address*/
                mess_buf[bytes] = 0; /*0 acts as end of packet character*/
-               /* from_ip = from_addr.sin_addr.s_addr;
+               from_ip = from_addr.sin_addr.s_addr;
 
-                printf( "Received from (%d.%d.%d.%d): %s\n", 
+               packet in_packet = (packet *) mess_buf;
+               printf("%s\n", in_packet.payload);
+
+               /*printf( "Received from (%d.%d.%d.%d): %s\n", 
                                 (htonl(from_ip) & 0xff000000)>>24,
                                 (htonl(from_ip) & 0x00ff0000)>>16,
                                 (htonl(from_ip) & 0x0000ff00)>>8,
