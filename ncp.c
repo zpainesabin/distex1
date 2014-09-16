@@ -6,7 +6,7 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include "net_include.h"
-
+#include <time.h>
 int g_s;
 struct sockaddr_in g_to_addr;
 
@@ -68,6 +68,9 @@ int main(int argc, char *argv[]) {
     packet temp = getNextPacket();
     packet * temp_pointer = &temp;
     ez_send((char *) temp_pointer, sizeof(packet));
+    printf("Sending %i \n", sizeof(packet));
+    //sleep(1);
+    //ez_send(buf,6);
   }
 
  }
@@ -80,7 +83,7 @@ packet getNextPacket() {
   packet next;
   next.index = cur_index;
   next.packet_type = 0;
-  next.payload = "TestTestTestTest\0";
+  strcpy(next.payload, "TestTestTestTest\0");
   cur_index++;
   return next;
 }

@@ -20,6 +20,6 @@ typedef struct
 {
   int packet_type;
   int index;
-  char payload[MAX_MESS_LEN]
+  char payload[MAX_MESS_LEN - 8]
 } packet;
 
