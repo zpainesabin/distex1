@@ -14,7 +14,8 @@
 
 #define PORT	     10220
 
-#define MAX_MESS_LEN 8192 
+#define MAX_MESS_LEN 1400 
+#define WINDOW_SIZE 10
 
 typedef struct
 {
