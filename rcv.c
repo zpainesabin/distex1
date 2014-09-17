@@ -62,8 +62,11 @@ int main(int argc, char *argv[])
     int i; /*for iterating for loops*/
     int current_ip = 0;
     int curr_index = 0; /*the index expected next*/
-    int window_size = 5; /*arbitrarily chosen default alue that shouldn't ever be used*/
-    packet ** window; /*WANT THIS TO BE AN ARRAY OF POINTERS TO PACKETS (SIZE UNKNOWN)!!!!!!!!!!!!!!!*/
+    packet * window[WINDOW_SIZE]; /*ARRAY OF POINTERS TO PACKETS*/
+    for(i=0; i<window_size; i++) {
+                    window[i] = NULL; 
+    }
+
     for(;;)
     { 
         num = ez_select();
@@ -95,28 +98,24 @@ int main(int argc, char *argv[])
 
             if (in_packet.packet_type == 3) { /*initiator*/
 
-                /*INITIATOR PAYLOAD: "FILENAME|WINDOWSIZE"*/
-                char * init_load = in_packet.payload;
-                char * filename = strtok(init_load, "|");
-                window_size = atoi(strtok(NULL, "|"));                
-                window = malloc(window_size*sizeof(packet *));
-                for(i=0; i<window_size; i++) {
-                    window[i] = NULL; 
-                }
+                /*INITIATOR PAYLOAD: "FILENAME"*/
+                char filename[bytes - 8];
+                strcpy(filename, in_packet.payload, bytes-8); 
                 //OPEN FILE USING FILENAME (tmp folder)!!!!!!!!!!!!!!!!!!!!!
 
                 packet first_ack;
                 first_ack.packet_type = 1;
-                ez_send(first_ack); /*signals that rcv is ready*/
+                ez_send(first_ack, 8); /*signals that rcv is ready*/
             } else { /*it's data*/
                 if (in_packet.index == curr_index) {
                     packet ack;
                     ack.packet_type = 1;
                     /*CHECK WHAT I HAVE TO SEE WHAT I SHOULD ACK!!!!!!!!!!!!!!!!!!*/
                     ack.index = curr_index;
-                    ez_send(ack);
-                    
+                    ez_send(ack 8);
+                    printf("%s\n", in_packet.payload);
                     /*WRITE WHAT I HAVE!!!!!!!!!!!!!!!!!!!!*/
+                    /*READ ONLY BYTES AMOUNT!!!!!!!!!!!!!!!*/
                     /*'MOVE WINDOW'!!!!!!!!!!!!!!!!!!!!!!!!!1*/
                     
 
@@ -188,8 +187,8 @@ int ez_receive() {
     return  recvfrom( sr, mess_buf, sizeof(mess_buf), 0, (struct sockaddr *)&from_addr, &from_len);
 }
 
-void ez_send(packet message) {
-  sendto_dbg(ss, (char*) &message, sizeof(packet), 0, (struct sockaddr *)&send_addr, sizeof(send_addr));
+void ez_send(packet message, int size) {
+  sendto_dbg(ss, (char*) &message, size, 0, (struct sockaddr *)&send_addr, sizeof(send_addr));
 }
  
 /*
