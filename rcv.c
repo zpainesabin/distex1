@@ -5,7 +5,7 @@
 
 int ez_select();
 int ez_receive();
-void ez_send(packet message);
+void ez_send(packet message, int size);
 
 void setup();
 
@@ -63,7 +63,8 @@ int main(int argc, char *argv[])
     int current_ip = 0;
     int curr_index = 0; /*the index expected next*/
     packet * window[WINDOW_SIZE]; /*ARRAY OF POINTERS TO PACKETS*/
-    for(i=0; i<window_size; i++) {
+    int win_packs = 0;
+    for(i=0; i<WINDOW_SIZE; i++) {
                     window[i] = NULL; 
     }
 
@@ -90,7 +91,7 @@ int main(int argc, char *argv[])
                     /*Send a nack*/
                     packet nack;
                     nack.packet_type = 2;
-                    ez_send(nack);
+                    ez_send(nack, 8);
                 }        
             }
 
@@ -98,34 +99,68 @@ int main(int argc, char *argv[])
 
             if (in_packet.packet_type == 3) { /*initiator*/
 
+                /*MAKE SURE THIS ONLY HAPPENS ONCE PER CUSTOMER!!!!*/
+                              /*EXCEPT FOR THE ACK< THAT HAPPENS EVERY TIME!!!!!!!!!!!!!!*/
                 /*INITIATOR PAYLOAD: "FILENAME"*/
                 char filename[bytes - 8];
-                strcpy(filename, in_packet.payload, bytes-8); 
+                memcpy(filename, in_packet.payload, bytes-8); 
                 //OPEN FILE USING FILENAME (tmp folder)!!!!!!!!!!!!!!!!!!!!!
 
                 packet first_ack;
-                first_ack.packet_type = 1;
+                first_ack.packet_type = 4; /*CONFIRMATION FOR START SENDING IS NOW TYPE 4!!!!!!!!!!!!!*/
                 ez_send(first_ack, 8); /*signals that rcv is ready*/
             } else { /*it's data*/
                 if (in_packet.index == curr_index) {
                     packet ack;
                     ack.packet_type = 1;
-                    /*CHECK WHAT I HAVE TO SEE WHAT I SHOULD ACK!!!!!!!!!!!!!!!!!!*/
-                    ack.index = curr_index;
-                    ez_send(ack 8);
+                    
+                    /*WRITE PACKET!!!!!!!!!!!!!!!!*/
+                    curr_index++;
+                    int num_written = 1;
+                    /*Write array up to first null*/   
+                    for( int n=1; n<WINDOW_SIZE && window[n] !=NULL; n++) {
+                        /*WRITE IT!!!!!!!!!*/
+                        free(window[n]);
+                        window[n] = NULL; /*POSSIBLE ERROR!!! CODE SEGFAULTS IF THIS IS GONE!!!!!!!!!!!!!!!!*/
+                        curr_index++;
+                        num_written++;
+                        win_packs--;
+                    }
+                    /*Shift over*/
+//                   if (win_packs != 0) {
+                       for(int n=0; n < WINDOW_SIZE; n++) {
+                           if (n+num_written < WINDOW_SIZE) {
+                               window[n] = window[n+num_written];
+                           }
+                           else { 
+                               window[n] = NULL;
+                           }
+                       }
+  //                  }
+
+                    ack.index = curr_index-1;
+                    ez_send(ack, 8);
                     printf("%s\n", in_packet.payload);
+                    printf("JUST ACKED %i", ack.index);
                     /*WRITE WHAT I HAVE!!!!!!!!!!!!!!!!!!!!*/
                     /*READ ONLY BYTES AMOUNT!!!!!!!!!!!!!!!*/
                     /*'MOVE WINDOW'!!!!!!!!!!!!!!!!!!!!!!!!!1*/
-                    
 
                 } else { /*missed something before what we just received*/
                     /*store what we just got!!!!!!!!!!!!!!!!!!!!!1*/
                     /*STORE ALL NACKS!!!!!!!!!!!!!!!!!!!!!*/
+                    printf("packet %i, curr %i\n", in_packet.index, curr_index);
+                    if (window[in_packet.index-curr_index] == NULL) { 
+                        window[in_packet.index-curr_index] = malloc(sizeof(packet));
+                        memcpy(window[in_packet.index-curr_index], &in_packet, sizeof(packet));
+                        win_packs++;
+                    }
+
                     packet nack;
-                    nack.index = curr_index-1;
+                    nack.index = in_packet.index;
+                    nack.packet_type = 2;
                     strcpy(nack.payload, "LIST OF NACKS!!!!!!!"); /*LIST NACKS!!!!!!!!!!!!!*/
-                    ez_send(nack);
+                    ez_send(nack, 8); /*REPLACE 8 WITH SIZE OF NCK STRING!!!!!!!!!!!!!!!!!!!!!!1!!!!!!!!!!!!!!*/
 
                 }
             }
@@ -189,27 +224,5 @@ int ez_receive() {
 
 void ez_send(packet message, int size) {
   sendto_dbg(ss, (char*) &message, size, 0, (struct sockaddr *)&send_addr, sizeof(send_addr));
+  printf("%i\n", message.packet_type);
 }
- 
-/*
-void PromptForHostName( char *my_name, char *host_name, size_t max_len ) {
-
-    char *c;
-
-    gethostname(my_name, max_len );
-    printf("My host name is %s.\n", my_name);
-
-    printf( "\nEnter host to send to:\n" );
-    if ( fgets(host_name,max_len,stdin) == NULL ) {
-        perror("Ucast: read_name");
-        exit(1);
-    }
-    
-    c = strchr(host_name,'\n');
-    if ( c ) *c = '\0';
-    c = strchr(host_name,'\r');
-    if ( c ) *c = '\0';
-
-    printf( "Sending from %s to %s.\n", my_name, host_name );
-*/
-
