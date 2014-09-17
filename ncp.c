@@ -9,7 +9,6 @@
 #include <time.h>
 
 #define NAME_LENGTH 80
-#define WINDOW_SIZE 10
 
 int g_s;
 struct sockaddr_in g_to_addr;
@@ -133,16 +132,11 @@ int main(int argc, char *argv[]) {
   send_file(source_file);
 
 
-
-
-
   for(i = 0; i < 10; i++) {
     packet temp = getNextPacket();
     packet * temp_pointer = &temp;
     ez_send((char *) temp_pointer, sizeof(packet));
     printf("Sending %i \n", sizeof(packet));
-    //sleep(1);
-    //ez_send(buf,6);
   }
 
   int num_r = 0;
@@ -164,7 +158,6 @@ int main(int argc, char *argv[]) {
  }
 
 void  send_file(char * source_file) {
-
   packet * window[WINDOW_SIZE];
   int received[WINDOW_SIZE];
   for (int x=0; x<WINDOW_SIZE; x++) {
@@ -193,10 +186,11 @@ void  send_file(char * source_file) {
     sizeAcks = getRecvd(acks, window[0]->index);
     int z=0;
     for (int i=0; i<sizeAcks; i++) {
-      while (acks[i] > window[z]->index) {
+      printf("------------- %p %i\n", (void *) window[z], z);
+      while ((z<WINDOW_SIZE) && (acks[i] > window[z]->index)) {
         z++;
       }
-      if (window[z]->index == acks[i]) {
+      if ((z<WINDOW_SIZE) && (window[z]->index == acks[i])) {
         received[z] = 1;
         z++;
       }
@@ -215,8 +209,8 @@ void  send_file(char * source_file) {
       }
       packet * curr_packet_point = malloc(sizeof(packet));
       memcpy(curr_packet_point, &nextPacket, sizeof(packet));
-      window[WINDOW_SIZE] = curr_packet_point;
-      received[WINDOW_SIZE] = 0;
+      window[WINDOW_SIZE-1] = curr_packet_point;
+      received[WINDOW_SIZE-1] = 0;
     }
 
   }
@@ -232,17 +226,28 @@ int getRecvd(int acks[], int startIndex) {
       bytes = ez_receive();
       from_ip = from_addr.sin_addr.s_addr;
       in_packet = *((packet *) mess_buf);
+      printf("%i %i packet type packet index \n", in_packet.packet_type, in_packet.index);
       if (in_packet.packet_type == 1) {
-        int z = in_packet.index - startIndex;
-        topIndex = z;
-        for (int i=0; i<=z; i++) {
-          acks[i] = startIndex + i;
+        int z = in_packet.index - startIndex + 1;
+        if ((topIndex == 0) || (acks[topIndex] != in_packet.index)) {
+          topIndex = z;
+          for (int i=0; i<z; i++) {
+            acks[i] = startIndex + i;
+          }
         } 
       } else if (in_packet.packet_type == 2)  {
-        acks[topIndex] = in_packet.index;
+        if ((topIndex == 0) || (acks[topIndex-1] != in_packet.index)) {
+          acks[topIndex] = in_packet.index;
+        }
+        topIndex++;
       }
     }
   }
+  printf("\n acks: ");
+  for (int i=0; i<topIndex; i++) {
+    printf("%i", acks[i]);
+  }
+  printf("\n");
   return topIndex;
 }
  
@@ -264,20 +269,37 @@ int send_start_packet(char * dest_file_name){
       bytes = ez_receive();
       from_ip = from_addr.sin_addr.s_addr;
       in_packet = *((packet *) mess_buf);
-      if (in_packet.packet_type == 1) {
+      if (in_packet.packet_type == 4) {
         printf(in_packet.payload);
         success = 1;
       } else {
         printf("Denied, entering waiting mode");
-        //TODO WAIT FOR START ACK
+        waitForStartMessage();
       }
     }
   }
   return 1;
 }
 
+void waitForStartMessage() {
+  int success = 0; 
+  while (success == 0) {
+    int num = ez_select();
+    if (num > 0 && FD_ISSET(sr, &temp_mask)) {
+    packet start_packet;
+    bytes = ez_receive();
+    start_packet = *((packet *) mess_buf);
+    if (start_packet.packet_type == 4) {
+      return;
+    }
+  }
+   } 
+}
+
 
 void ez_send(char * message, int size) {
+
+  printf("Sending %s %i %i \n", ((packet *)message)->payload, ((packet *)message)->index,  size);
   sendto_dbg(g_s, message, size, 0, (struct sockaddr *)&g_to_addr, sizeof(g_to_addr));
 }
 
