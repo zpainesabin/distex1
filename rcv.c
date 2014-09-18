@@ -65,6 +65,8 @@ int main(int argc, char *argv[])
     packet * window[WINDOW_SIZE]; /*ARRAY OF POINTERS TO PACKETS*/
     //int win_packs = 0;           /*SEARCH FOR WINPACKS AND REIMPLEMENT? DONT SHIFT EVERY TIME!!!!!!!!!!!!!!!!!!*/
     FILE *fp;
+    int last_index = -1; /*final packet index; -1 if not set*/
+    int last_bytes = -1;
 
     for(i=0; i<WINDOW_SIZE; i++) {
                     window[i] = NULL; 
@@ -103,7 +105,9 @@ int main(int argc, char *argv[])
                     /*Send a nack*/
                     packet nack;
                     nack.packet_type = 2;
-                    ez_send(nack, 8); /*HAVE TO CHANGE TO IP TO THIS GUYS IP ANF THEN BACK!!!!!!!!!!!!!!!!!!!!!!!*/
+                    send_addr.sin_addr.s_addr = from_ip;
+                    ez_send(nack, 8);
+                    send_addr.sin_addr.s_addr = current_ip;  /*STORE HIS 3 PACKET!!!!!!!!!!!!!!!!!!!!*/
                     continue; /*Do nothing else with message*/
                 }        
             }
@@ -122,7 +126,11 @@ int main(int argc, char *argv[])
                     int num_written = 1;
                     /*Write array up to first null*/   
                     for( int n=1; n<WINDOW_SIZE && window[n] !=NULL; n++) {
-                        fwrite(window[n]->payload, 1, bytes-8, fp);
+ 	                if (window[n]->index != last_index) {
+                            fwrite(window[n]->payload, 1, bytes-8, fp);
+                        } else {
+                            fwrite(window[n]->payload, 1, last_bytes-8, fp);
+                        }
                         free(window[n]);
                         window[n] = NULL; /*POSSIBLE ERROR!!! CODE SEGFAULTS IF THIS IS GONE!!!!!!!!!!!!!!!!*/
                         curr_index++;
@@ -143,13 +151,15 @@ int main(int argc, char *argv[])
                     ez_send(ack, 8);
                     printf("JUST ACKED %i\n", ack.index);
 
-                    /*IF BYTES < MAX, FILE SENDING IS OVER!!!!!!!!!!!!!!!!!!*/
-                    if (bytes < MAX_MESS_LEN) {
-                         /*CLOSE THE FILE AND DO END OF WRITE STUFF!!!!!!!!!!!!!!!!!!!!!!*/
-                         fclose(fp);  /*CHECK TO SEE IF THIS (AND FWRITE) WERE SUCCESSFUL!!!!!!!!!!!!!!*/
-                         /*MORE STUFF!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!*/
-                         printf("IT'S OVER!!!!!\n");
-                         exit(1);
+                    if (bytes < MAX_MESS_LEN) { /*this was the last packet*/
+                        last_index = in_packet.index;
+                        printf("last_index is %i", last_index);
+                    }
+
+                    if (last_index != -1 && curr_index > last_index) { /*I've acked every packet*/
+                        fclose(fp);
+                        printf("IT'S OVER!!!\n");
+                        exit(1);          /*MOVE ON To NEXT GUY!!!!!!!!!!!!!!!!!!!!!!!!!!*/
                     }
 
                 } else if (in_packet.index < curr_index) { /*An ack might have been missed, send cumulative ack again*/
@@ -170,6 +180,11 @@ int main(int argc, char *argv[])
                     nack.index = in_packet.index;
                     nack.packet_type = 2;
                     ez_send(nack, 8);
+
+                    if (bytes < MAX_MESS_LEN) { /*this was the last packet*/
+                        last_index = in_packet.index;
+                        printf("last_index is %i", last_index);
+                    }
 
                 }
             }
