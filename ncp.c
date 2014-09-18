@@ -69,8 +69,9 @@ int main(int argc, char *argv[]) {
 
   printf("%i %s %s %s\n",loss_percent, source_file, dest_file_name, dest_computer);
 
-  s_file = fopen(source_file, 'r'); 
-  
+  printf("fopen opening\n"); 
+  s_file = fopen(source_file, "r"); 
+  printf("fopen opened\n"); 
   /*Code Copied from Yair's test.c*/
   sendto_dbg_init(loss_percent);
 
@@ -156,14 +157,20 @@ void  send_file(char * source_file) {
     
   int cont = 0;
   while (cont == 0) {
+    int count_not_received = 0;
     int send_count = 0;
     for (int x=0; x<WINDOW_SIZE; x++) {
       if ((received[x] == 0) && ((done==0) || (x<WINDOW_SIZE-1))) {
+        count_not_received++;
         ez_send((char *) window[x], sizeof(packet));
-      } else {
+      } else if (received[x] == 0) {
+        count_not_received++;
         ez_send((char *) window[x], final_size + 8);
       }
     }
+    if (count_not_received == 0){
+      exit(1);
+    } 
 
     int acks[WINDOW_SIZE] = {0};
     int sizeAcks;
