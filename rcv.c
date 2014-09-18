@@ -85,8 +85,10 @@ int main(int argc, char *argv[])
                     curr_index = 0; 
 
                     char filename[bytes - 8];
-                    memcpy(filename, in_packet.payload, bytes-8); 
-                    fp = fopen(strcat("/tmp/", filename), "w");
+                    memcpy(filename, in_packet.payload, bytes-8);
+                    char concat[MAX_MESS_LEN]; 
+                    strcpy(concat, "/tmp/\0");
+                    fp = fopen(strcat(concat, filename), "w");
                     /*Will fall down to the type 3 case below*/ 
                 } else { /*queue him*/
                     qTail->next = malloc(sizeof(qNode));
