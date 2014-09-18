@@ -78,9 +78,11 @@ int main(int argc, char *argv[])
             bytes = ez_receive(); /*sets mess_buf to received 'string', and from_addr to sender's address*/
             from_ip = from_addr.sin_addr.s_addr;
 
+            in_packet = *((packet *) mess_buf);
+
             if (from_ip != current_ip) {
                 if (current_ip == 0) { /*sevice him*/
-                    send_addr.sin_addr.s_addr = from_ip;
+                    send_addr.sin_addr.s_addr = from_ip;   /*THIS IS HOW I CHANGE IP's!!!!!!!!!!!!!!!!!!!!!!!!!*/
                     current_ip = from_ip; 
                     curr_index = 0; 
 
@@ -88,7 +90,9 @@ int main(int argc, char *argv[])
                     memcpy(filename, in_packet.payload, bytes-8);
                     char concat[MAX_MESS_LEN]; 
                     strcpy(concat, "/tmp/\0");
-                    fp = fopen(strcat(concat, filename), "w");
+                    printf(strcat(concat, filename));
+                    printf("\n");
+                    fp = fopen(concat, "w");
                     /*Will fall down to the type 3 case below*/ 
                 } else { /*queue him*/
                     qTail->next = malloc(sizeof(qNode));
@@ -103,8 +107,6 @@ int main(int argc, char *argv[])
                     continue; /*Do nothing else with message*/
                 }        
             }
-
-            in_packet = *((packet *) mess_buf);
 
             if (in_packet.packet_type == 3) { /*initiator 3*/
                 packet first_ack;
@@ -140,15 +142,14 @@ int main(int argc, char *argv[])
 
                     ack.index = curr_index-1;
                     ez_send(ack, 8);
-                    printf("%s\n", in_packet.payload);
-                    printf("JUST ACKED %i", ack.index);
+                    printf("JUST ACKED %i\n", ack.index);
 
                     /*IF BYTES < MAX, FILE SENDING IS OVER!!!!!!!!!!!!!!!!!!*/
                     if (bytes < MAX_MESS_LEN) {
                          /*CLOSE THE FILE AND DO END OF WRITE STUFF!!!!!!!!!!!!!!!!!!!!!!*/
                          fclose(fp);  /*CHECK TO SEE IF THIS (AND FWRITE) WERE SUCCESSFUL!!!!!!!!!!!!!!*/
                          /*MORE STUFF!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!*/
-                         printf("IT'S OVER!!!!!");
+                         printf("IT'S OVER!!!!!\n");
                          exit(1);
                     }
 
@@ -157,7 +158,7 @@ int main(int argc, char *argv[])
                     ack.packet_type = 1;
                     ack.index = curr_index - 1;
                     ez_send(ack, 8);
-                    printf("JUSR RE-ACKED %i", ack.index); 
+                    printf("JUST RE-ACKED %i\n", ack.index); 
                 } else { /*We missed something before what we just received*/
                     printf("packet %i, curr %i\n", in_packet.index, curr_index);
                     if (window[in_packet.index-curr_index] == NULL) { 
