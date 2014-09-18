@@ -188,9 +188,9 @@ void  send_file(char * source_file) {
       }
       packet nextPacket;
       int bytes = getNextPacket(&nextPacket);
-      if (bytes < MAX_MESS_LEN) {
-        done == 1;
-        final_size == bytes;
+      if (bytes < MAX_MESS_LEN-8) {
+        done = 1;
+        final_size = bytes;
       }
       packet * curr_packet_point = malloc(sizeof(packet));
       memcpy(curr_packet_point, &nextPacket, sizeof(packet));
@@ -299,6 +299,7 @@ int getNextPacket(packet* next) {
   next->index = cur_index;
   next->packet_type = 0;
   int bytesRead = fread(&(next->payload), 1, MAX_MESS_LEN-8, s_file);
+  printf("%i bytes read from file", bytesRead);
   cur_index++;
   return bytesRead;
 }
