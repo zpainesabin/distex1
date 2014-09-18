@@ -22,7 +22,7 @@ int gethostname(char*,size_t);
 int getRecvd(int acks[], int startIndex);
 int send_start_packet(char * dest_file_name);
 
-int ez_select();
+int ez_select(int tout);
 
 int ez_receive();
 
@@ -205,7 +205,12 @@ void  send_file(char * source_file) {
 int getRecvd(int acks[], int startIndex) {
   int topIndex = 0;
   for (int x=0; x<WINDOW_SIZE; x++) {
-    int num = ez_select();
+    int num;    
+    if (x==0) {
+      num = ez_select(1000);
+    } else {
+      num = ez_select(10);
+    }
    if (num > 0 && FD_ISSET(sr, &temp_mask)) {
       packet in_packet;
       bytes = ez_receive();
@@ -249,15 +254,15 @@ int send_start_packet(char * dest_file_name){
     start_packet.packet_type = 3;
     strcpy(start_packet.payload, dest_file_name);
     packet * start_packet_pointer = &start_packet;
+    printf("%s\n", start_packet.payload);
     ez_send((char *) start_packet_pointer, sizeof(packet));
-    num = ez_select();
+    num = ez_select(100);
     if (num > 0 && FD_ISSET(sr, &temp_mask)) {
       packet in_packet;
       bytes = ez_receive();
       from_ip = from_addr.sin_addr.s_addr;
       in_packet = *((packet *) mess_buf);
       if (in_packet.packet_type == 4) {
-        printf(in_packet.payload);
         success = 1;
       } else {
         printf("Denied, entering waiting mode");
@@ -271,7 +276,7 @@ int send_start_packet(char * dest_file_name){
 void waitForStartMessage() {
   int success = 0; 
   while (success == 0) {
-    int num = ez_select();
+    int num = ez_select(100);
     if (num > 0 && FD_ISSET(sr, &temp_mask)) {
     packet start_packet;
     bytes = ez_receive();
@@ -286,7 +291,7 @@ void waitForStartMessage() {
 
 void ez_send(char * message, int size) {
 
-  printf("Sending %s %i %i \n", ((packet *)message)->payload, ((packet *)message)->index,  size);
+  printf("Sending  %i %i \n", ((packet *)message)->index,  size);
   sendto_dbg(g_s, message, size, 0, (struct sockaddr *)&g_to_addr, sizeof(g_to_addr));
 }
 
@@ -298,10 +303,10 @@ int getNextPacket(packet* next) {
   return bytesRead;
 }
 
-int ez_select() {
+int ez_select(int tout) {
     temp_mask = mask;
     timeout.tv_sec = 0;
-    timeout.tv_usec = 100;
+    timeout.tv_usec = tout;
     return select(FD_SETSIZE, &temp_mask, &dummy_mask, &dummy_mask, &timeout);
 }
 
