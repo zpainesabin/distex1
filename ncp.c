@@ -14,7 +14,7 @@ int g_s;
 struct sockaddr_in g_to_addr;
 
 void ez_send(char * message, int size);
-packet getNextPacket();
+int getNextPacket(packet * next);
 
 int cur_index = 0;
 void  send_file(char * source_file);
@@ -49,7 +49,7 @@ int ez_receive();
     char                  mess_buf[MAX_MESS_LEN];
     char                  input_buf[80];
     int                   loss_percent;
-
+    FILE *                s_file;
 
 int main(int argc, char *argv[]) {
   
@@ -69,7 +69,8 @@ int main(int argc, char *argv[]) {
 
   printf("%i %s %s %s\n",loss_percent, source_file, dest_file_name, dest_computer);
 
-
+  s_file = fopen(source_file, 'r'); 
+  
   /*Code Copied from Yair's test.c*/
   sendto_dbg_init(loss_percent);
 
@@ -131,81 +132,58 @@ int main(int argc, char *argv[]) {
 
   send_file(source_file);
 
-
-  for(i = 0; i < 10; i++) {
-    packet temp = getNextPacket();
-    packet * temp_pointer = &temp;
-    ez_send((char *) temp_pointer, sizeof(packet));
-    printf("Sending %i \n", sizeof(packet));
-  }
-
-  int num_r = 0;
-  while (num_r < 10) {
-    num = ez_select();
-    if (num > 0 && FD_ISSET(sr, &temp_mask)) {
-      packet in_packet;
-      bytes = ez_receive();
-      from_ip = from_addr.sin_addr.s_addr;
-      in_packet = *((packet *) mess_buf);
-      printf("%s\n", in_packet.payload);
-      num_r++;
-    } else {
-      printf(".");
-      fflush(0);
-    }
-    }
-
  }
 
 void  send_file(char * source_file) {
+  int done = 0;
+  int final_size = 0;
   packet * window[WINDOW_SIZE];
   int received[WINDOW_SIZE];
   for (int x=0; x<WINDOW_SIZE; x++) {
-    packet nextPacket = getNextPacket();
-    if (nextPacket.packet_type == 9) {
-      return;
-    } else {
-      packet * curr_packet_point = malloc(sizeof(packet));
-      memcpy(curr_packet_point, &nextPacket, sizeof(packet));
-      window[x] = curr_packet_point;
-      received[x] = 0;
-    }
+    packet nextPacket;
+    int bytes = getNextPacket(&nextPacket);
+    if (bytes < MAX_MESS_LEN-8) {
+        done = 1;
+        final_size = bytes;
+        break;
+    } 
+    packet * curr_packet_point = malloc(sizeof(packet));
+    memcpy(curr_packet_point, &nextPacket, sizeof(packet));
+    window[x] = curr_packet_point;
+    received[x] = 0;
+    
   }
     
   int cont = 0;
   while (cont == 0) {
     int send_count = 0;
     for (int x=0; x<WINDOW_SIZE; x++) {
-      if (received[x] == 0) {
+      if ((received[x] == 0) && ((done==0) || (x<WINDOW_SIZE-1))) {
         ez_send((char *) window[x], sizeof(packet));
+      } else {
+        ez_send((char *) window[x], final_size + 8);
       }
     }
 
-    int acks[WINDOW_SIZE];
+    int acks[WINDOW_SIZE] = {0};
     int sizeAcks;
     sizeAcks = getRecvd(acks, window[0]->index);
-    int z=0;
-    for (int i=0; i<sizeAcks; i++) {
-      printf("------------- %p %i\n", (void *) window[z], z);
-      while ((z<WINDOW_SIZE) && (acks[i] > window[z]->index)) {
-        z++;
-      }
-      if ((z<WINDOW_SIZE) && (window[z]->index == acks[i])) {
-        received[z] = 1;
-        z++;
+    for (int i=0; i<WINDOW_SIZE; i++) {
+      if (acks[i] == 1) {
+        received[i] = 1;
       }
     }
-
-     while (received[0] == 1) {
+     while ((received[0] == 1) && (done==0)) {
       free(window[0]);
       for (int n=0; n<WINDOW_SIZE-1; n++) {
         window[n] = window[n+1];
         received[n] = received[n+1];
       }
-      packet nextPacket = getNextPacket();
-      if (nextPacket.packet_type == 9) {
-        printf("DONE");
-        return;
+      packet nextPacket;
+      int bytes = getNextPacket(&nextPacket);
+      if (bytes < MAX_MESS_LEN) {
+        done == 1;
+        final_size == bytes;
       }
       packet * curr_packet_point = malloc(sizeof(packet));
       memcpy(curr_packet_point, &nextPacket, sizeof(packet));
@@ -226,25 +204,27 @@ int getRecvd(int acks[], int startIndex) {
       bytes = ez_receive();
       from_ip = from_addr.sin_addr.s_addr;
       in_packet = *((packet *) mess_buf);
+      if (in_packet.index < startIndex) {
+        printf("UHOH");
+      }
       printf("%i %i packet type packet index \n", in_packet.packet_type, in_packet.index);
       if (in_packet.packet_type == 1) {
         int z = in_packet.index - startIndex + 1;
-        if ((topIndex == 0) || (acks[topIndex] != in_packet.index)) {
+        if (acks[topIndex] != in_packet.index) {
           topIndex = z;
           for (int i=0; i<z; i++) {
-            acks[i] = startIndex + i;
+            acks[i] = 1;
           }
         } 
       } else if (in_packet.packet_type == 2)  {
-        if ((topIndex == 0) || (acks[topIndex-1] != in_packet.index)) {
-          acks[topIndex] = in_packet.index;
+        if (acks[topIndex-1] != in_packet.index) {
+          acks[in_packet.index - startIndex] = 1;
         }
-        topIndex++;
       }
     }
   }
-  printf("\n acks: ");
-  for (int i=0; i<topIndex; i++) {
+  printf("\n %i acks: ", startIndex);
+  for (int i=0; i<WINDOW_SIZE; i++) {
     printf("%i", acks[i]);
   }
   printf("\n");
@@ -303,13 +283,12 @@ void ez_send(char * message, int size) {
   sendto_dbg(g_s, message, size, 0, (struct sockaddr *)&g_to_addr, sizeof(g_to_addr));
 }
 
-packet getNextPacket() {
-  packet next;
-  next.index = cur_index;
-  next.packet_type = 0;
-  strcpy(next.payload, "TestTestTestTest\0");
+int getNextPacket(packet* next) {
+  next->index = cur_index;
+  next->packet_type = 0;
+  int bytesRead = fread(&(next->payload), 1, MAX_MESS_LEN-8, s_file);
   cur_index++;
-  return next;
+  return bytesRead;
 }
 
 int ez_select() {
