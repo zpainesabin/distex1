@@ -138,20 +138,28 @@ int main(int argc, char *argv[]) {
 void  send_file(char * source_file) {
   int done = 0;
   int final_size = 0;
+  int last_pack_index = WINDOW_SIZE-1;
   packet * window[WINDOW_SIZE];
   int received[WINDOW_SIZE];
   for (int x=0; x<WINDOW_SIZE; x++) {
     packet nextPacket;
     int bytes = getNextPacket(&nextPacket);
-    if (bytes < MAX_MESS_LEN-8) {
+    received[x] = 0;
+    if (bytes == 0) {
+      received[x] = 1;
+      if (x < last_pack_index) {
+        last_pack_index = x;
+        received[x] = 0;
+      }
+    }
+    else if (bytes < MAX_MESS_LEN-8) {
         done = 1;
         final_size = bytes;
-        break;
+        last_pack_index = x;
     } 
     packet * curr_packet_point = malloc(sizeof(packet));
     memcpy(curr_packet_point, &nextPacket, sizeof(packet));
     window[x] = curr_packet_point;
-    received[x] = 0;
     
   }
     
@@ -160,7 +168,7 @@ void  send_file(char * source_file) {
     int count_not_received = 0;
     int send_count = 0;
     for (int x=0; x<WINDOW_SIZE; x++) {
-      if ((received[x] == 0) && ((done==0) || (x<WINDOW_SIZE-1))) {
+      if ((received[x] == 0) && ((done==0) || (x<last_pack_index))) {
         count_not_received++;
         ez_send((char *) window[x], sizeof(packet));
       } else if (received[x] == 0) {
@@ -256,7 +264,7 @@ int send_start_packet(char * dest_file_name){
     packet * start_packet_pointer = &start_packet;
     printf("%s\n", start_packet.payload);
     ez_send((char *) start_packet_pointer, sizeof(packet));
-    num = ez_select(100);
+    num = ez_select(1000);
     if (num > 0 && FD_ISSET(sr, &temp_mask)) {
       packet in_packet;
       bytes = ez_receive();
@@ -290,8 +298,7 @@ void waitForStartMessage() {
 
 
 void ez_send(char * message, int size) {
-
-  printf("Sending  %i %i \n", ((packet *)message)->index,  size);
+  printf("sending packet %i size %i\n", ((packet *)message)->index, size);
   sendto_dbg(g_s, message, size, 0, (struct sockaddr *)&g_to_addr, sizeof(g_to_addr));
 }
 
@@ -306,8 +313,8 @@ int getNextPacket(packet* next) {
 
 int ez_select(int tout) {
     temp_mask = mask;
-    timeout.tv_sec = 0;
-    timeout.tv_usec = tout;
+    timeout.tv_sec = tout/1000;
+    timeout.tv_usec = tout%1000;
     return select(FD_SETSIZE, &temp_mask, &dummy_mask, &dummy_mask, &timeout);
 }
 
