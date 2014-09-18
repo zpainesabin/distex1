@@ -116,8 +116,7 @@ int main(int argc, char *argv[])
                 if (in_packet.index == curr_index) {
                     packet ack;
                     ack.packet_type = 1;
-       
-                    fwrite(ack.payload, 1, bytes-8, fp);
+                    fwrite(in_packet.payload, 1, bytes-8, fp);
                     
                     curr_index++;
                     int num_written = 1;
