@@ -50,6 +50,14 @@ int main()
     {
         temp_mask = mask;
         num = select( FD_SETSIZE, &temp_mask, &dummy_mask, &dummy_mask, NULL);
+        if (num <= 0) {
+          printf("closing %d \n",j);
+          FD_CLR(recv_s[j], &mask);
+          close(recv_s[j]);
+          valid[j] = 0;  
+          fclose(fw);
+          exit(1);
+        }
         if (num > 0) {
             if ( FD_ISSET(s,&temp_mask) ) {
                 recv_s[i] = accept(s, 0, 0) ;
@@ -76,15 +84,6 @@ int main()
                         printf("len is :%d  message is : %.*s \n ",
                                len,len,mess_buf); 
                         fwrite(mess_buf, 1, len, fw);
-                    }
-                    else
-                    {
-                        printf("closing %d \n",j);
-                        FD_CLR(recv_s[j], &mask);
-                        close(recv_s[j]);
-                        valid[j] = 0;  
-                        fclose(fw);
-                        exit(1);
                     }
                 }
                }
