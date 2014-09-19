@@ -137,6 +137,7 @@ int main(int argc, char *argv[]) {
 
 void  send_file(char * source_file) {
   int done = 0;
+  int no_response_counter = 0;
   int final_size = 0;
   int last_pack_index = WINDOW_SIZE-1;
   packet * window[WINDOW_SIZE];
@@ -181,10 +182,19 @@ void  send_file(char * source_file) {
     } 
 
     int acks[WINDOW_SIZE] = {0};
-    int sizeAcks;
-    sizeAcks = getRecvd(acks, window[0]->index);
+    int acked = getRecvd(acks, window[0]->index);
+    if (acked == 0) {
+      no_response_counter++;
+      if (no_response_counter > 10) {
+        printf("No response for 10 attempts, exiting");
+        exit(1);
+      }
+    } else {
+      no_response_counter = 0;
+    }
     for (int i=0; i<WINDOW_SIZE; i++) {
       if (acks[i] == 1) {
+        
         received[i] = 1;
       }
     }
@@ -211,7 +221,7 @@ void  send_file(char * source_file) {
 }
 
 int getRecvd(int acks[], int startIndex) {
-  int topIndex = 0;
+  int got_an_ack = 0;
   for (int x=0; x<WINDOW_SIZE; x++) {
     int num;    
     if (x==0) {
@@ -229,17 +239,14 @@ int getRecvd(int acks[], int startIndex) {
       }
       printf("%i %i packet type packet index \n", in_packet.packet_type, in_packet.index);
       if (in_packet.packet_type == 1) {
-        int z = in_packet.index - startIndex + 1;
-        if (acks[topIndex] != in_packet.index) {
-          topIndex = z;
+          got_an_ack = 1;
+          int z = in_packet.index - startIndex + 1;
           for (int i=0; i<z; i++) {
             acks[i] = 1;
           }
-        } 
       } else if (in_packet.packet_type == 2)  {
-        if (acks[topIndex-1] != in_packet.index) {
+          got_an_ack = 1;
           acks[in_packet.index - startIndex] = 1;
-        }
       }
     }
   }
@@ -248,7 +255,7 @@ int getRecvd(int acks[], int startIndex) {
     printf("%i", acks[i]);
   }
   printf("\n");
-  return topIndex;
+  return got_an_ack;
 }
  
 
