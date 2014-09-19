@@ -1,4 +1,5 @@
 #include "net_include.h"
+#include "sendto_dbg.h"
 #include <string.h>
 
 #define NAME_LENGTH 80
@@ -64,7 +65,7 @@ int main(int argc, char *argv[])
     int current_ip = 0;
     int curr_index = 0; /*the index expected next*/
     packet * window[WINDOW_SIZE]; /*ARRAY OF POINTERS TO PACKETS*/
-    //int win_packs = 0;           /*SEARCH FOR WINPACKS AND REIMPLEMENT? DONT SHIFT EVERY TIME!!!!!!!!!!!!!!!!!!*/
+    int win_packs = 0;
     FILE *fp;
     int last_index = -1; /*final packet index; -1 if not set*/
     int last_bytes = -1;
@@ -86,7 +87,7 @@ int main(int argc, char *argv[])
 
             if (from_ip != current_ip) {
                 if (current_ip == 0) { /*sevice him*/
-                    send_addr.sin_addr.s_addr = from_ip;   /*THIS IS HOW I CHANGE IP's!!!!!!!!!!!!!!!!!!!!!!!!!*/
+                    send_addr.sin_addr.s_addr = from_ip;
                     current_ip = from_ip; 
                     curr_index = 0; 
 
@@ -140,12 +141,13 @@ int main(int argc, char *argv[])
                         bytes_written += last_bytes;
                     }
                     free(window[n]);
-                    window[n] = NULL; /*POSSIBLE ERROR!!! CODE SEGFAULTS IF THIS IS GONE!!!!!!!!!!!!!!!!*/
+//                    window[n] = NULL; /*POSSIBLE ERROR!!! CODE SEGFAULTS IF THIS IS GONE!!!!!!!!!!!!!!!!*/
                     curr_index++;
                     num_written++;
-                    // win_packs--;
+                    win_packs--;
                 }
                 /*Shift over*/             /*RIGHT NOW I'M SHIFTING OVER EVERY TIME!!!!!!!!!!*/
+                                           /*ADD IF WINPACKS!=0!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!*/
                 for(int n=0; n < WINDOW_SIZE; n++) {
                     if (n+num_written < WINDOW_SIZE) {
                         window[n] = window[n+num_written];
@@ -180,7 +182,7 @@ int main(int argc, char *argv[])
                 if (window[in_packet.index-curr_index] == NULL) { 
                     window[in_packet.index-curr_index] = malloc(sizeof(packet));
                     memcpy(window[in_packet.index-curr_index], &in_packet, sizeof(packet));
-                    //win_packs++;
+                    win_packs++;
                 }
 
                 packet nack;
