@@ -35,6 +35,7 @@ void setup();
 
     typedef struct dummy_node {
         int ip;
+        char * filename;
         struct dummy_node *next;
     } qNode;
         
@@ -57,7 +58,7 @@ int main(int argc, char *argv[])
     /*setup queue*/
     qHead.next = NULL;
     qTail = &qHead;
-
+    
     packet in_packet;
     int i; /*for iterating for loops*/
     int current_ip = 0;
@@ -67,6 +68,7 @@ int main(int argc, char *argv[])
     FILE *fp;
     int last_index = -1; /*final packet index; -1 if not set*/
     int last_bytes = -1;
+    int bytes_written = 0;
 
     for(i=0; i<WINDOW_SIZE; i++) {
                     window[i] = NULL; 
@@ -88,7 +90,7 @@ int main(int argc, char *argv[])
                     current_ip = from_ip; 
                     curr_index = 0; 
 
-                    char filename[bytes - 8];
+                    char filename[bytes - 8];   /* TRY sizeof in_packet.payload!!!!!!!!!!!!!!!!!!!!*/
                     memcpy(filename, in_packet.payload, bytes-8);
                     char concat[MAX_MESS_LEN]; 
                     strcpy(concat, "/tmp/\0");
@@ -100,6 +102,8 @@ int main(int argc, char *argv[])
                     qTail->next = malloc(sizeof(qNode));
                     qTail = qTail->next;
                     qTail->ip = from_ip;
+                    qTail->filename = malloc(bytes-8);
+                    memcpy(qTail->filename, in_packet.payload, bytes-8); 
                     qTail->next = NULL;
                                             /*ONLY QUEUE HIM IF HE"S NOT ALREADY IN QUEUEi!!!!!!!!!!!!!!!*/
                     /*Send a nack*/
@@ -107,88 +111,91 @@ int main(int argc, char *argv[])
                     nack.packet_type = 2;
                     send_addr.sin_addr.s_addr = from_ip;
                     ez_send(nack, 8);
-                    send_addr.sin_addr.s_addr = current_ip;  /*STORE HIS 3 PACKET!!!!!!!!!!!!!!!!!!!!*/
+                    send_addr.sin_addr.s_addr = current_ip;
                     continue; /*Do nothing else with message*/
                 }        
             }
 
+            /* Handle packet --------------------------------------------------------------------------*/
             if (in_packet.packet_type == 3) { /*initiator 3*/
                 packet first_ack;
                 first_ack.packet_type = 4; /*initiator confirmation 4*/
                 ez_send(first_ack, 8); /*signals that rcv is ready*/
-            } else { /*it's data*/
-                if (in_packet.index == curr_index) {
-                    packet ack;
-                    ack.packet_type = 1;
-                    fwrite(in_packet.payload, 1, bytes-8, fp);
+
+            } else if (in_packet.index == curr_index) { /*data to write*/
+                packet ack;
+                ack.packet_type = 1;
+                fwrite(in_packet.payload, 1, bytes-8, fp);
+                bytes_written += bytes;
                     
+                curr_index++;
+                int num_written = 1;
+                /*Write array up to first null*/   
+                for( int n=1; n<WINDOW_SIZE && window[n] !=NULL; n++) {
+ 	            if (window[n]->index != last_index) {
+                        fwrite(window[n]->payload, 1, bytes-8, fp);
+                        bytes_written += bytes;
+                    } else {
+                        fwrite(window[n]->payload, 1, last_bytes-8, fp);
+                        bytes_written += last_bytes;
+                    }
+                    free(window[n]);
+                    window[n] = NULL; /*POSSIBLE ERROR!!! CODE SEGFAULTS IF THIS IS GONE!!!!!!!!!!!!!!!!*/
                     curr_index++;
-                    int num_written = 1;
-                    /*Write array up to first null*/   
-                    for( int n=1; n<WINDOW_SIZE && window[n] !=NULL; n++) {
- 	                if (window[n]->index != last_index) {
-                            fwrite(window[n]->payload, 1, bytes-8, fp);
-                        } else {
-                            fwrite(window[n]->payload, 1, last_bytes-8, fp);
-                        }
-                        free(window[n]);
-                        window[n] = NULL; /*POSSIBLE ERROR!!! CODE SEGFAULTS IF THIS IS GONE!!!!!!!!!!!!!!!!*/
-                        curr_index++;
-                        num_written++;
-                       // win_packs--;
-                    }
-                    /*Shift over*/             /*RIGHT NOW I'M SHIFTING OVER EVERY TIME!!!!!!!!!!*/
-                    for(int n=0; n < WINDOW_SIZE; n++) {
-                        if (n+num_written < WINDOW_SIZE) {
-                            window[n] = window[n+num_written];
-                        }
-                        else { 
-                            window[n] = NULL;
-                        }
-                    }
-
-                    ack.index = curr_index-1;
-                    ez_send(ack, 8);
-                    printf("JUST ACKED %i\n", ack.index);
-
-                    if (bytes < MAX_MESS_LEN) { /*this was the last packet*/
-                        last_index = in_packet.index;
-                        printf("last_index is %i", last_index);
-                    }
-
-                    if (last_index != -1 && curr_index > last_index) { /*I've acked every packet*/
-                        fclose(fp);
-                        printf("IT'S OVER!!!\n");
-                        exit(1);          /*MOVE ON To NEXT GUY!!!!!!!!!!!!!!!!!!!!!!!!!!*/
-                    }
-
-                } else if (in_packet.index < curr_index) { /*An ack might have been missed, send cumulative ack again*/
-                    packet ack;
-                    ack.packet_type = 1;
-                    ack.index = curr_index - 1;
-                    ez_send(ack, 8);
-                    printf("JUST RE-ACKED %i\n", ack.index); 
-                } else { /*We missed something before what we just received*/
-                    printf("packet %i, curr %i\n", in_packet.index, curr_index);
-                    if (window[in_packet.index-curr_index] == NULL) { 
-                        window[in_packet.index-curr_index] = malloc(sizeof(packet));
-                        memcpy(window[in_packet.index-curr_index], &in_packet, sizeof(packet));
-                        //win_packs++;
-                    }
-
-                    packet nack;
-                    nack.index = in_packet.index;
-                    nack.packet_type = 2;
-                    ez_send(nack, 8);
-
-                    if (bytes < MAX_MESS_LEN) { /*this was the last packet*/
-                        last_index = in_packet.index;
-                        last_bytes = bytes;
-                        printf("last_index is %i\n", last_index);
-                    }
-
+                    num_written++;
+                    // win_packs--;
                 }
-            }
+                /*Shift over*/             /*RIGHT NOW I'M SHIFTING OVER EVERY TIME!!!!!!!!!!*/
+                for(int n=0; n < WINDOW_SIZE; n++) {
+                    if (n+num_written < WINDOW_SIZE) {
+                        window[n] = window[n+num_written];
+                    } else { 
+                        window[n] = NULL;
+                    }
+                }
+
+                ack.index = curr_index-1;
+                ez_send(ack, 8);
+                printf("JUST ACKED %i\n", ack.index);
+
+                if (bytes < MAX_MESS_LEN) { /*this was the last packet*/
+                    last_index = in_packet.index;
+                    printf("last_index is %i", last_index);
+                }
+
+                if (last_index != -1 && curr_index > last_index) { /*I've acked every packet*/
+                    fclose(fp);
+                    printf("IT'S OVER!!!\n");
+                    exit(1);          /*MOVE ON To NEXT GUY!!!!!!!!!!!!!!!!!!!!!!!!!!*/
+                }
+
+            } else if (in_packet.index < curr_index) { /*An ack might have been missed, send cumulative ack again*/
+                packet ack;
+                ack.packet_type = 1;
+                ack.index = curr_index - 1;
+                ez_send(ack, 8);
+                printf("JUST RE-ACKED %i\n", ack.index); 
+            } else { /*We missed something before what we just received*/
+                printf("packet %i, curr %i\n", in_packet.index, curr_index);
+                if (window[in_packet.index-curr_index] == NULL) { 
+                    window[in_packet.index-curr_index] = malloc(sizeof(packet));
+                    memcpy(window[in_packet.index-curr_index], &in_packet, sizeof(packet));
+                    //win_packs++;
+                }
+
+                packet nack;
+                nack.index = in_packet.index;
+                nack.packet_type = 2;
+                ez_send(nack, 8);
+
+                if (bytes < MAX_MESS_LEN) { /*this was the last packet*/
+                    last_index = in_packet.index;
+                    last_bytes = bytes;
+                    printf("last_index is %i\n", last_index);
+                }
+
+            } /* End handle packet --------------------------------------------------------------------------*/
+
         } else if (num <= 0) {
             printf(".");
             fflush(0);
