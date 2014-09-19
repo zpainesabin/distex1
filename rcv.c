@@ -183,7 +183,8 @@ int main(int argc, char *argv[])
 
                     if (bytes < MAX_MESS_LEN) { /*this was the last packet*/
                         last_index = in_packet.index;
-                        printf("last_index is %i", last_index);
+                        last_bytes = bytes;
+                        printf("last_index is %i\n", last_index);
                     }
 
                 }
