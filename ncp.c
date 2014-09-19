@@ -140,6 +140,8 @@ void  send_file(char * source_file) {
   int no_response_counter = 0;
   int final_size = 0;
   int last_pack_index = WINDOW_SIZE-1;
+  int total_size_bytes = 0;
+  time_t previous_time = time(0);
   packet * window[WINDOW_SIZE];
   int received[WINDOW_SIZE];
   for (int x=0; x<WINDOW_SIZE; x++) {
@@ -178,6 +180,9 @@ void  send_file(char * source_file) {
       }
     }
     if (count_not_received == 0){
+      time_t current = time(0);
+      double difference = difftime(current, previous_time);
+      printf("Total Megabytes %i. Time: %f\n", total_size_bytes/1000000.0, difference);
       exit(1);
     } 
 
@@ -186,7 +191,10 @@ void  send_file(char * source_file) {
     if (acked == 0) {
       no_response_counter++;
       if (no_response_counter > 10) {
-        printf("No response for 10 attempts, exiting");
+        printf("No response for 10 attempts, exiiting");
+        time_t current = time(0);
+        double difference = difftime(current, previous_time);
+        printf("Total Megabytes %i. Time: %f\n", total_size_bytes/1000000.0, difference);
         exit(1);
       }
     } else {
@@ -200,6 +208,13 @@ void  send_file(char * source_file) {
     }
      while ((received[0] == 1) && (done==0)) {
       free(window[0]);
+      total_size_bytes = total_size_bytes + MAX_MESS_LEN-8;
+      printf("Total size bytes updating %i \n", total_size_bytes);
+      if (total_size_bytes % 50000000 == 0) {
+        time_t current = time(0);
+        double difference = difftime(current, previous_time);
+        printf("Total Megabytes so far %i. Time: %f\n", total_size_bytes / 1000000.0, difference);
+      }
       for (int n=0; n<WINDOW_SIZE-1; n++) {
         window[n] = window[n+1];
         received[n] = received[n+1];
@@ -215,8 +230,9 @@ void  send_file(char * source_file) {
       window[WINDOW_SIZE-1] = curr_packet_point;
       received[WINDOW_SIZE-1] = 0;
     }
-
+   
   }
+  
 
 }
 
@@ -227,7 +243,7 @@ int getRecvd(int acks[], int startIndex) {
     if (x==0) {
       num = ez_select(1000);
     } else {
-      num = ez_select(10);
+      num = ez_select(100);
     }
    if (num > 0 && FD_ISSET(sr, &temp_mask)) {
       packet in_packet;
@@ -250,11 +266,11 @@ int getRecvd(int acks[], int startIndex) {
       }
     }
   }
-  printf("\n %i acks: ", startIndex);
+  //printf("\n %i acks: ", startIndex);
   for (int i=0; i<WINDOW_SIZE; i++) {
-    printf("%i", acks[i]);
+    //printf("%i", acks[i]);
   }
-  printf("\n");
+  //printf("\n");
   return got_an_ack;
 }
  
@@ -269,7 +285,7 @@ int send_start_packet(char * dest_file_name){
     start_packet.packet_type = 3;
     strcpy(start_packet.payload, dest_file_name);
     packet * start_packet_pointer = &start_packet;
-    printf("%s\n", start_packet.payload);
+    //printf("%s\n", start_packet.payload);
     ez_send((char *) start_packet_pointer, sizeof(packet));
     num = ez_select(1000);
     if (num > 0 && FD_ISSET(sr, &temp_mask)) {
@@ -279,9 +295,9 @@ int send_start_packet(char * dest_file_name){
       in_packet = *((packet *) mess_buf);
       if (in_packet.packet_type == 4) {
         success = 1;
-      } else {
-        printf("Denied, entering waiting mode");
-        waitForStartMessage();
+      //} else {
+        //printf("Denied, entering waiting mode");
+        //waitForStartMessage();
       }
     }
   }
@@ -291,7 +307,7 @@ int send_start_packet(char * dest_file_name){
 void waitForStartMessage() {
   int success = 0; 
   while (success == 0) {
-    int num = ez_select(100);
+    int num = ez_select(1000);
     if (num > 0 && FD_ISSET(sr, &temp_mask)) {
     packet start_packet;
     bytes = ez_receive();
@@ -313,7 +329,7 @@ int getNextPacket(packet* next) {
   next->index = cur_index;
   next->packet_type = 0;
   int bytesRead = fread(&(next->payload), 1, MAX_MESS_LEN-8, s_file);
-  printf("%i bytes read from file", bytesRead);
+  //printf("%i bytes read from file", bytesRead);
   cur_index++;
   return bytesRead;
 }
