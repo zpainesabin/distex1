@@ -140,6 +140,7 @@ void  send_file(char * source_file) {
   int no_response_counter = 0;
   int final_size = 0;
   int last_pack_index = WINDOW_SIZE-1;
+  int total_size_bytes = 0;
   packet * window[WINDOW_SIZE];
   int received[WINDOW_SIZE];
   for (int x=0; x<WINDOW_SIZE; x++) {
@@ -279,9 +280,9 @@ int send_start_packet(char * dest_file_name){
       in_packet = *((packet *) mess_buf);
       if (in_packet.packet_type == 4) {
         success = 1;
-      } else {
-        printf("Denied, entering waiting mode");
-        waitForStartMessage();
+      //} else {
+        //printf("Denied, entering waiting mode");
+        //waitForStartMessage();
       }
     }
   }
@@ -291,7 +292,7 @@ int send_start_packet(char * dest_file_name){
 void waitForStartMessage() {
   int success = 0; 
   while (success == 0) {
-    int num = ez_select(100);
+    int num = ez_select(1000);
     if (num > 0 && FD_ISSET(sr, &temp_mask)) {
     packet start_packet;
     bytes = ez_receive();
