@@ -147,15 +147,15 @@ int main(int argc, char *argv[])
                     win_packs--;
                 }
                 /*Shift over*/             /*RIGHT NOW I'M SHIFTING OVER EVERY TIME!!!!!!!!!!*/
-                                           /*ADD IF WINPACKS!=0!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!*/
-                for(int n=0; n < WINDOW_SIZE; n++) {
-                    if (n+num_written < WINDOW_SIZE) {
-                        window[n] = window[n+num_written];
-                    } else { 
-                        window[n] = NULL;
+                if (win_packs !=0) {                           /*ADD IF WINPACKS!=0!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!*/
+                    for(int n=0; n < WINDOW_SIZE; n++) {
+                        if (n+num_written < WINDOW_SIZE) {
+                            window[n] = window[n+num_written];
+                        } else { 
+                            window[n] = NULL;
+                        }
                     }
                 }
-
                 ack.index = curr_index-1;
                 ez_send(ack, 8);
                 printf("JUST ACKED %i\n", ack.index);
