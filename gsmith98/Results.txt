@@ -1,0 +1,25 @@
+Graham Smith and Zach Sabin
+
+     CURRENT STATUS:
+         - ncp and rcv are working perfectly, but the following features have not yet been fully implemented:
+             - Multiple senders (receiver side) (nearly done)
+             - MB and rate reporting (receiver side) (small task)
+         - tcp client seems to be working perfectly
+         - tcp server seems to have a bug. 
+             - In all likelihood it is a small, dumb error. We do not expect it will take long at all to track down, we just felt it was more important to get a submission in on time than keep hunting it close to the deadline.
+
+     TASKS REMAINING:
+        - find the mistake in tcp server and correct it to have a fully working tcp
+        - implement last piece of multiple senders and rate reporting for rcv
+        - toy with different settings of timeouts, window sizes, etc.
+        - (Potentially consolidate and optimize code, including additional comments and creating more functions)
+        - run the comparison tests requested by the exercise 
+        - Make Design doc stronger (currently not much different from the preliminary one)
+        - (Professor seemed to say in class that a Makefile was not needed, but the exercise says otherwise)
+        
+
+    We feel that we were on track to have a good final submission prepared by the Friday extended due date, but when the second extension was announced we decided to take our time with it. The remaining tasks we have should only take a few more hours, but we opted not to work those hours today for convenience. To reiterate: we could have finished today but decided we'd rather spread it out over the time given.
+
+       The Results of our comparisons and tinkerings will go in this document when they are completed. ncp and rcv are runnable now, but their speed will improve later (removing print statements, optimizing, tinkering), so it doesn't seem useful to gather that data at this stage.
+
+    

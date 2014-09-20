@@ -1,0 +1,45 @@
+﻿Graham Smith + Zach Sabin
+
+
+Compilation:
+     ncp:      gcc -std=c99 ncp.c sendto_dbg.c -o ncp
+     rcv:       gcc -std=c99 rcv.c sendto_dbg.c -o rcv
+
+
+Usage:
+  ncp:       
+   ./ncp <loss rate> <sourcefile> <destination filename>@ugrad<#>.cs.jhu.edu
+               (file will go to the tmp directory of target ugrad machine)
+  rcv:
+   ./rcv <loss rate>
+
+
+  
+Our Protocol is Selective Repeat ARQ
+
+
+Sender sends numbered (indexed) packets in order. Window (size n) of packets focused on at one time. Packets in window are sent in order, window moves forward one packet at a time whenever acks are received for the front of the window. Window ensures a limit of memory use on receiving side, but will cause longer wait time. Whenever a nack is received, or the sender waits a set time without receiving a specific ack, the sender will resend said packet. Window will not move forward past something missing a nack.
+
+
+Receiver has an array window. When things are working well, the receiver will receive packets in order and write them in order to a file on the fly. If packets are received out of order (most often when packets go missing), the receiver needs to store what it has (it can’t write to the file yet!) in the array. Gaps are left in the array to be filled by the missing elements in order. Once the front-most gaps are filled, those packets can be written in order to the file and then the window shifts.
+
+
+A queue of senders is maintained so that the receiver can service multiple requests one at a time. When getting a request during a transfer, rcv puts the ip and filename in the queue. Upon completing a transfer, rcv checks the queue for others to service.
+
+
+The array should be circular.
+
+
+File size may end in a fraction of a packet
+
+
+receiver data structure holds pointers to packets, not packets
+
+
+ack up to and including. If i have 1-6, ack 6
+
+
+when you finish the file, eof in packet? packet saying you got everything. Byzantine general problem. timeout?
+
+
+no need to wrap around indices
