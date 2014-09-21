@@ -6,7 +6,7 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include "net_include.h"
-#include <time.h>
+#include <sys/time.h>
 
 #define NAME_LENGTH 80
 
@@ -21,7 +21,7 @@ void  send_file(char * source_file);
 int gethostname(char*,size_t);
 int getRecvd(int acks[], int startIndex);
 int send_start_packet(char * dest_file_name);
-
+int waitForStartMessage();
 int ez_select(int tout);
 
 int ez_receive();
@@ -69,9 +69,7 @@ int main(int argc, char *argv[]) {
 
   printf("%i %s %s %s\n",loss_percent, source_file, dest_file_name, dest_computer);
 
-  printf("fopen opening\n"); 
   s_file = fopen(source_file, "r"); 
-  printf("fopen opened\n"); 
   /*Code Copied from Yair's test.c*/
   sendto_dbg_init(loss_percent);
 
@@ -100,7 +98,6 @@ int main(int argc, char *argv[]) {
 
   
   int rate, i;
-  char * buf = "hello";
 
   g_s = socket(AF_INET, SOCK_DGRAM, 0);
   if (g_s<0) {
@@ -127,11 +124,12 @@ int main(int argc, char *argv[]) {
 
   if (start > 0) {
     
-    printf("Starting transmission");
+    printf("Starting transmission\n");
+    send_file(source_file);
 
+  } else {
+    printf("Could not establish connection with server\n");
   }
-
-  send_file(source_file);
 
  }
 
@@ -141,8 +139,10 @@ void  send_file(char * source_file) {
   int final_size = 0;
   int last_pack_index = WINDOW_SIZE-1;
   int total_size_bytes = 0;
-  time_t previous_time = time(0);
-  packet * window[WINDOW_SIZE];
+  struct timeval first, previous, current;
+  gettimeofday(&first, NULL);
+  previous = first;
+packet * window[WINDOW_SIZE];
   int received[WINDOW_SIZE];
   for (int x=0; x<WINDOW_SIZE; x++) {
     packet nextPacket;
@@ -180,9 +180,13 @@ void  send_file(char * source_file) {
       }
     }
     if (count_not_received == 0){
-      time_t current = time(0);
-      double difference = difftime(current, previous_time);
-      printf("Total Megabytes %i. Time: %f\n", total_size_bytes/1000000.0, difference);
+      gettimeofday(&current, NULL);
+      double difference = (double)(current.tv_sec - first.tv_sec) + (double)(current.tv_usec - first.tv_usec) / 1000000.0;
+      double total = (double)total_size_bytes / 1000000.0;
+      printf("Total Megabytes %f. Time %f. Average Transfer Rate: %f\n", total, difference, (total *8.0)/difference);
+      for (int x=0; x<=last_pack_index; x++) {
+        free(window[x]);
+      }
       exit(1);
     } 
 
@@ -192,9 +196,13 @@ void  send_file(char * source_file) {
       no_response_counter++;
       if (no_response_counter > 100) {
         printf("No response for 100 attempts, exiiting");
-        time_t current = time(0);
-        double difference = difftime(current, previous_time);
-        printf("Total Megabytes %i. Time: %f\n", total_size_bytes/1000000.0, difference);
+        gettimeofday(&current, NULL);
+        double difference = (double)(current.tv_sec - first.tv_sec) + (double)(current.tv_usec - first.tv_usec) / 1000000.0;
+        double total = (double)total_size_bytes / 1000000.0;
+        printf("Total Megabytes %f. Time: %f. Average Rate .\n", total, difference, (total * 8) / difference);
+         for (int x=0; x<=last_pack_index; x++) {
+          free(window[x]);
+         }
         exit(1);
       }
     } else {
@@ -209,11 +217,13 @@ void  send_file(char * source_file) {
      while ((received[0] == 1) && (done==0)) {
       free(window[0]);
       total_size_bytes = total_size_bytes + MAX_MESS_LEN-8;
-      printf("Total size bytes updating %i \n", total_size_bytes);
-      if (total_size_bytes % 50000000 == 0) {
-        time_t current = time(0);
-        double difference = difftime(current, previous_time);
-        printf("Total Megabytes so far %i. Time: %f\n", total_size_bytes / 1000000.0, difference);
+    //  printf("Total size bytes updating %f \n", total_size_bytes);
+      if (total_size_bytes % 50000000 < MAX_MESS_LEN - 8) {
+        gettimeofday(&current, NULL);
+        double difference = (double)(current.tv_sec - previous.tv_sec) + (double)(current.tv_usec - previous.tv_usec) / 1000000.0;
+        double total = (double)total_size_bytes / 1000000.0;
+        previous = current;
+        printf("Total Megabytes so far %f. Average Transfer Rate of Last 50 %f\n", total_size_bytes / 1000000.0, (50.0*8.0) /difference);
       }
       for (int n=0; n<WINDOW_SIZE-1; n++) {
         window[n] = window[n+1];
@@ -253,10 +263,10 @@ int getRecvd(int acks[], int startIndex) {
       bytes = ez_receive();
       from_ip = from_addr.sin_addr.s_addr;
       in_packet = *((packet *) mess_buf);
-      if (in_packet.index < startIndex) {
-        printf("UHOH");
-      }
-      printf("%i %i packet type packet index \n", in_packet.packet_type, in_packet.index);
+     // if (in_packet.index < startIndex) {
+      //  printf("UHOH");
+      //}
+      //printf("%i %i packet type packet index \n", in_packet.packet_type, in_packet.index);
       if (in_packet.packet_type == 1) {
           got_an_ack = 1;
           int z = in_packet.index - startIndex + 1;
@@ -269,11 +279,6 @@ int getRecvd(int acks[], int startIndex) {
       }
     }
   }
-  //printf("\n %i acks: ", startIndex);
-  for (int i=0; i<WINDOW_SIZE; i++) {
-    //printf("%i", acks[i]);
-  }
-  //printf("\n");
   return got_an_ack;
 }
  
@@ -281,50 +286,58 @@ int getRecvd(int acks[], int startIndex) {
 
 int send_start_packet(char * dest_file_name){
   int success = 0;
-
+  int count = 0;
   while (success == 0) {
     packet start_packet;
     start_packet.index = 0;
     start_packet.packet_type = 3;
     strcpy(start_packet.payload, dest_file_name);
     packet * start_packet_pointer = &start_packet;
-    //printf("%s\n", start_packet.payload);
     ez_send((char *) start_packet_pointer, sizeof(packet));
-    num = ez_select(1000);
+    printf("Sending Request\n");
+    num = ez_select(10000000);
     if (num > 0 && FD_ISSET(sr, &temp_mask)) {
+      count = 0;
       packet in_packet;
       bytes = ez_receive();
       from_ip = from_addr.sin_addr.s_addr;
       in_packet = *((packet *) mess_buf);
       if (in_packet.packet_type == 4) {
         success = 1;
-      //} else {
-        //printf("Denied, entering waiting mode");
-        //waitForStartMessage();
+        return 1;
+      } else if (in_packet.packet_type == 2) {
+        int gotit = waitForStartMessage();
+        if (gotit == 1) {
+          return 1;
+        }
+      }
+    } else {
+      count++;
+      if (count == 5) {
+        return 0;
       }
     }
   }
   return 1;
 }
 
-void waitForStartMessage() {
-  int success = 0; 
-  while (success == 0) {
-    int num = ez_select(1000);
+int waitForStartMessage() {
+    int num = ez_select(1000000);
     if (num > 0 && FD_ISSET(sr, &temp_mask)) {
     packet start_packet;
     bytes = ez_receive();
     start_packet = *((packet *) mess_buf);
     if (start_packet.packet_type == 4) {
-      return;
+      return 1;
+    } else {
+      return 0;
     }
-  }
-   } 
+  } 
 }
 
 
 void ez_send(char * message, int size) {
-  printf("sending packet %i size %i\n", ((packet *)message)->index, size);
+  //printf("sending packet %i size %i\n", ((packet *)message)->index, size);
   sendto_dbg(g_s, message, size, 0, (struct sockaddr *)&g_to_addr, sizeof(g_to_addr));
 }
 

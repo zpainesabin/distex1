@@ -126,7 +126,6 @@ int main(int argc, char *argv[])
                         qTail->next = NULL;
                     }
                    
-
                     /*Send a nack*/
                     packet nack;
                     nack.packet_type = 2;
@@ -219,6 +218,7 @@ int main(int argc, char *argv[])
                         bytes_written = 0;
                         num_50 = 0;
                         begun = 0;
+                        last_packet = time(0);
                         send_addr.sin_addr.s_addr = current_ip;;
 
                         for(i=0; i<WINDOW_SIZE; i++) {
@@ -287,6 +287,7 @@ int main(int argc, char *argv[])
                         bytes_written = 0;
                         num_50 = 0;
                         begun = 0;
+                        last_packet = time(0);
                         send_addr.sin_addr.s_addr = current_ip;;
 
                         for(i=0; i<WINDOW_SIZE; i++) {
@@ -313,8 +314,10 @@ int main(int argc, char *argv[])
                         packet first_ack;
                         first_ack.packet_type = 4; /*initiator confirmation 4*/
                         ez_send(first_ack, 8); /*signals that rcv is ready*/ 
-                        //printf("sent to %i\n", current_ip);
-                    } /*next guy is now being served ----------------------------------------------*/
+                        //printf("sent to %i\n", current_ip  /*next guy is now being served-------------------------------*/
+                } else {
+                    exit(1);  
+                }    
             }
         }
     }

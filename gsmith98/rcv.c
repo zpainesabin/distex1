@@ -1,12 +1,15 @@
 #include "net_include.h"
 #include "sendto_dbg.h"
 #include <string.h>
+#include <time.h>
+#include <sys/time.h>
 
 #define NAME_LENGTH 80
 
 int ez_select();
 int ez_receive();
 void ez_send(packet message, int size);
+int checkQ(int check_ip);
 
 void setup();
 
@@ -70,43 +73,59 @@ int main(int argc, char *argv[])
     int last_index = -1; /*final packet index; -1 if not set*/
     int last_bytes = -1;
     int bytes_written = 0;
+    int num_50 = 1;
+    struct timeval start_time, previous_time, curr_time;
+    time_t last_packet;
+    int begun = 0;    
 
     for(i=0; i<WINDOW_SIZE; i++) {
-                    window[i] = NULL; 
+        window[i] = NULL; 
     }
 
     for(;;)
     { 
         num = ez_select();
+        if (begun == 1 && difftime(time(0), last_packet) > 5) {
+            num = 0;
+        }
         if (num > 0 && FD_ISSET(sr, &temp_mask)) {
             /* WE RECEIVED SOMETHING*/
+            begun = 1;
             bytes = ez_receive(); /*sets mess_buf to received 'string', and from_addr to sender's address*/
             from_ip = from_addr.sin_addr.s_addr;
 
             in_packet = *((packet *) mess_buf);
 
             if (from_ip != current_ip) {
-                if (current_ip == 0) { /*sevice him*/
+                if (in_packet.packet_type != 3) {
+                    continue; /*ignore it*/
+                } else if (current_ip == 0) { /*sevice him*/
                     send_addr.sin_addr.s_addr = from_ip;
                     current_ip = from_ip; 
                     curr_index = 0; 
 
-                    char filename[bytes - 8];   /* TRY sizeof in_packet.payload!!!!!!!!!!!!!!!!!!!!*/
+                    char filename[bytes - 8];
                     memcpy(filename, in_packet.payload, bytes-8);
                     char concat[MAX_MESS_LEN]; 
                     strcpy(concat, "/tmp/\0");
+                    printf("Writing to ");
                     printf(strcat(concat, filename));
                     printf("\n");
                     fp = fopen(concat, "w");
+                    gettimeofday(&start_time,0);
+                    gettimeofday(&previous_time,0);
                     /*Will fall down to the type 3 case below*/ 
-                } else { /*queue him*/
-                    qTail->next = malloc(sizeof(qNode));
-                    qTail = qTail->next;
-                    qTail->ip = from_ip;
-                    qTail->filename = malloc(bytes-8);
-                    memcpy(qTail->filename, in_packet.payload, bytes-8); 
-                    qTail->next = NULL;
-                                            /*ONLY QUEUE HIM IF HE"S NOT ALREADY IN QUEUEi!!!!!!!!!!!!!!!*/
+                } else {
+                    if (checkQ(from_ip) == 0) { /*queue him if not in queue*/
+                        qTail->next = malloc(sizeof(qNode));
+                        qTail = qTail->next;
+                        qTail->ip = from_ip;
+                        //printf("q'ing %i\n", from_ip);
+                        qTail->filename = malloc(bytes-8);
+                        memcpy(qTail->filename, in_packet.payload, bytes-8); 
+                        qTail->next = NULL;
+                    }
+                   
                     /*Send a nack*/
                     packet nack;
                     nack.packet_type = 2;
@@ -117,17 +136,20 @@ int main(int argc, char *argv[])
                 }        
             }
 
+            last_packet = time(0);
+
             /* Handle packet --------------------------------------------------------------------------*/
             if (in_packet.packet_type == 3) { /*initiator 3*/
                 packet first_ack;
                 first_ack.packet_type = 4; /*initiator confirmation 4*/
                 ez_send(first_ack, 8); /*signals that rcv is ready*/
+                //printf("serving %i\n", current_ip);
 
             } else if (in_packet.index == curr_index) { /*data to write*/
                 packet ack;
                 ack.packet_type = 1;
                 fwrite(in_packet.payload, 1, bytes-8, fp);
-                bytes_written += bytes;
+                bytes_written += bytes-8;
                     
                 curr_index++;
                 int num_written = 1;
@@ -135,19 +157,17 @@ int main(int argc, char *argv[])
                 for( int n=1; n<WINDOW_SIZE && window[n] !=NULL; n++) {
  	            if (window[n]->index != last_index) {
                         fwrite(window[n]->payload, 1, bytes-8, fp);
-                        bytes_written += bytes;
+                        bytes_written += bytes-8;
                     } else {
                         fwrite(window[n]->payload, 1, last_bytes-8, fp);
-                        bytes_written += last_bytes;
+                        bytes_written += last_bytes-8;
                     }
                     free(window[n]);
-//                    window[n] = NULL; /*POSSIBLE ERROR!!! CODE SEGFAULTS IF THIS IS GONE!!!!!!!!!!!!!!!!*/
                     curr_index++;
                     num_written++;
-                    win_packs--;
                 }
-                /*Shift over*/             /*RIGHT NOW I'M SHIFTING OVER EVERY TIME!!!!!!!!!!*/
-                //if (win_packs !=0) {                           /*ADD IF WINPACKS!=0!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!*/
+                /*Shift over*/   
+                if (win_packs !=0) {   /*If winpacks != 0 before we wrote*/
                     for(int n=0; n < WINDOW_SIZE; n++) {
                         if (n+num_written < WINDOW_SIZE) {
                             window[n] = window[n+num_written];
@@ -155,20 +175,75 @@ int main(int argc, char *argv[])
                             window[n] = NULL;
                         }
                     }
-               // }
+                }
+
+                win_packs = win_packs - (num_written - 1);
+
                 ack.index = curr_index-1;
                 ez_send(ack, 8);
-                printf("JUST ACKED %i\n", ack.index);
+                //printf("JUST ACKED %i\n", ack.index);
+
+                if (bytes_written >= num_50*50000000) {
+                    gettimeofday(&curr_time,0);
+                    double last_elapsed = ((double) (curr_time.tv_usec - previous_time.tv_usec)/1000000) + (curr_time.tv_sec - previous_time.tv_sec);
+                    double rate = (50.0*8.0)/last_elapsed; 
+                    printf("%f MB written so far. Current transfer rate is %f Mbits per second.\n", bytes_written/1000000.0, rate);
+                    previous_time = curr_time;
+                    num_50++;
+                }
 
                 if (bytes < MAX_MESS_LEN) { /*this was the last packet*/
                     last_index = in_packet.index;
-                    printf("last_index is %i", last_index);
+                    //printf("last_index is %i", last_index);
                 }
 
                 if (last_index != -1 && curr_index > last_index) { /*I've acked every packet*/
                     fclose(fp);
-                    printf("IT'S OVER!!!\n");
-                    exit(1);          /*MOVE ON To NEXT GUY!!!!!!!!!!!!!!!!!!!!!!!!!!*/
+                    gettimeofday(&curr_time,0);
+                    double mbytes = bytes_written/1000000.0;
+                    double total_elapsed = ((double) (curr_time.tv_usec - start_time.tv_usec)/1000000) + (curr_time.tv_sec - start_time.tv_sec);
+                    double avg_rate = (double) (mbytes*8)/total_elapsed; 
+
+                    printf("Transfer complete. %f MB transferred, %f seconds elapsed, average transfer rate %f Mbits/sec.\n", 
+                                mbytes, total_elapsed, avg_rate);
+
+                    if (qHead.next == NULL) {
+                        exit(1);         
+                    } else { /*Move on to next guy-------------------------------------*/
+                        current_ip = qHead.next->ip;
+                        curr_index = 0;
+                        win_packs = 0;
+                        last_index = -1;
+                        last_bytes = -1;
+                        bytes_written = 0;
+                        num_50 = 0;
+                        begun = 0;
+                        last_packet = time(0);
+                        send_addr.sin_addr.s_addr = current_ip;;
+
+                        for(i=0; i<WINDOW_SIZE; i++) {
+                            window[i] = NULL; 
+                        }
+ 
+                        char * filename = qHead.next->filename;
+                        char concat[MAX_MESS_LEN]; 
+                        strcpy(concat, "/tmp/\0");
+                        printf("Writing to ");
+                        printf(strcat(concat, filename));
+                        printf("\n");
+                        fp = fopen(concat, "w");
+                        gettimeofday(&start_time,0);
+                        gettimeofday(&previous_time,0);
+
+                        qNode *temp = qHead.next;
+                        qHead.next = qHead.next->next;
+                        free(temp);
+ 
+                        packet first_ack;
+                        first_ack.packet_type = 4; /*initiator confirmation 4*/
+                        ez_send(first_ack, 8); /*signals that rcv is ready*/ 
+                        //printf("sent to %i\n", current_ip);
+                    } /*next guy is now being served ----------------------------------------------*/
                 }
 
             } else if (in_packet.index < curr_index) { /*An ack might have been missed, send cumulative ack again*/
@@ -176,9 +251,9 @@ int main(int argc, char *argv[])
                 ack.packet_type = 1;
                 ack.index = curr_index - 1;
                 ez_send(ack, 8);
-                printf("JUST RE-ACKED %i\n", ack.index); 
+                //printf("JUST RE-ACKED %i\n", ack.index); 
             } else { /*We missed something before what we just received*/
-                printf("packet %i, curr %i\n", in_packet.index, curr_index);
+                //printf("packet %i, curr %i\n", in_packet.index, curr_index);
                 if (window[in_packet.index-curr_index] == NULL) { 
                     window[in_packet.index-curr_index] = malloc(sizeof(packet));
                     memcpy(window[in_packet.index-curr_index], &in_packet, sizeof(packet));
@@ -193,14 +268,57 @@ int main(int argc, char *argv[])
                 if (bytes < MAX_MESS_LEN) { /*this was the last packet*/
                     last_index = in_packet.index;
                     last_bytes = bytes;
-                    printf("last_index is %i\n", last_index);
+                    //printf("last_index is %i\n", last_index);
                 }
 
             } /* End handle packet --------------------------------------------------------------------------*/
 
         } else if (num <= 0) {
-            printf(".");
-            fflush(0);
+            if (begun == 1) { 
+                printf("Connection lost.\n");
+                fclose(fp);
+
+                if (qHead.next != NULL) { /*Move on to next guy-------------------------------------*/
+                        current_ip = qHead.next->ip;
+                        curr_index = 0;
+                        win_packs = 0;
+                        last_index = -1;
+                        last_bytes = -1;
+                        bytes_written = 0;
+                        num_50 = 0;
+                        begun = 0;
+                        last_packet = time(0);
+                        send_addr.sin_addr.s_addr = current_ip;;
+
+                        for(i=0; i<WINDOW_SIZE; i++) {
+                            if (window[i] != NULL) {
+                                free(window[i]);
+                            }
+                            window[i] = NULL; 
+                        }
+ 
+                        char * filename = qHead.next->filename;
+                        char concat[MAX_MESS_LEN]; 
+                        strcpy(concat, "/tmp/\0");
+                        printf("Writing to ");
+                        printf(strcat(concat, filename));
+                        printf("\n");
+                        fp = fopen(concat, "w");
+                        gettimeofday(&start_time,0);
+                        gettimeofday(&previous_time,0);
+
+                        qNode *temp = qHead.next;
+                        qHead.next = qHead.next->next;
+                        free(temp);
+ 
+                        packet first_ack;
+                        first_ack.packet_type = 4; /*initiator confirmation 4*/
+                        ez_send(first_ack, 8); /*signals that rcv is ready*/ 
+                        //printf("sent to %i\n", current_ip  /*next guy is now being served-------------------------------*/
+                } else {
+                    exit(1);  
+                }    
+            }
         }
     }
     return 0;
@@ -258,5 +376,16 @@ int ez_receive() {
 
 void ez_send(packet message, int size) {
   sendto_dbg(ss, (char*) &message, size, 0, (struct sockaddr *)&send_addr, sizeof(send_addr));
-  printf("%i\n", message.packet_type);
+  //printf("%i\n", message.packet_type);
+}
+
+int checkQ(int check_ip) {
+    qNode * checker = &qHead;
+    while (checker->next != NULL) {
+        checker = checker->next;
+        if (checker->ip == check_ip) {
+            return 1;
+        }
+    }
+    return 0;
 }
