@@ -68,15 +68,13 @@ int main()
                       int strlen = length - sizeof(length);
                       recv(recv_s[j], mess_buf, strlen, 0);
                       mess_buf[strlen] = '\0';
-                      printf("%s %i \n", mess_buf, strlen);
+                      printf("Writing to %s\n", mess_buf);
                       fw = fopen(mess_buf, "w");
                     }
                     }
                     int len = recv(recv_s[j],mess_buf,MAX_MESS_LEN,0);
                     if( len > 0) {
                         no_reception = 0;
-                      //  printf("len is :%d  message is : %.*s \n ",
-                        //       len,len,mess_buf); 
                         fwrite(mess_buf, 1, len, fw);
                     }
                     else {
@@ -85,10 +83,10 @@ int main()
                         FD_CLR(recv_s[j], &mask);
                         close(recv_s[j]);
                         valid[j]=0;
-                        printf("%p file\n", fw);
                         if (fw != NULL) {
                         fclose(fw);
                         }
+                        printf("Transfer completed\n");
                         exit(1);
                       }
                     }
@@ -97,7 +95,6 @@ int main()
             }
         }
     }
-
     return 0;
 
 }

@@ -28,11 +28,9 @@ int main(int argc, char * argv[])
   token = strtok(NULL, "@");
   char * dest_computer = token;
 
-  printf("%i %s %s\n", source_file, dest_file_name, dest_computer);
+  printf("Sending %s to %s at %s\n", source_file, dest_file_name, dest_computer);
 
-  printf("fopen opening\n");
   s_file = fopen(source_file, "r");
-  printf("fopen opened\n");
 
     s = socket(AF_INET, SOCK_STREAM, 0); /* Create a socket (TCP) */
     if (s<0) {
@@ -61,7 +59,6 @@ int main(int argc, char * argv[])
 
     int filename_len = strlen(dest_file_name) + sizeof(int);
     memcpy(mess_buf, &filename_len, sizeof(int));
-    printf("%p %s %i \n", &mess_buf[sizeof(int)], dest_file_name, strlen(dest_file_name));
     memcpy(&mess_buf[sizeof(int)], dest_file_name, strlen(dest_file_name));
     ret = send(s, mess_buf, filename_len, 0);
     int prev_size = MAX_MESS_LEN;
@@ -78,7 +75,7 @@ int main(int argc, char * argv[])
         }
         prev_size = mess_len;
     }
-    printf("%i\n", shutdown(s, 2));
+    printf("Transfer completed.\n");
     return 0;
 
 }

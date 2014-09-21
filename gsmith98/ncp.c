@@ -217,7 +217,6 @@ packet * window[WINDOW_SIZE];
      while ((received[0] == 1) && (done==0)) {
       free(window[0]);
       total_size_bytes = total_size_bytes + MAX_MESS_LEN-8;
-    //  printf("Total size bytes updating %f \n", total_size_bytes);
       if (total_size_bytes % 50000000 < MAX_MESS_LEN - 8) {
         gettimeofday(&current, NULL);
         double difference = (double)(current.tv_sec - previous.tv_sec) + (double)(current.tv_usec - previous.tv_usec) / 1000000.0;
@@ -250,7 +249,6 @@ int getRecvd(int acks[], int startIndex) {
   int got_an_ack = 0;
   int num = 1;
   int x =0;
-  //for (int x=0; x<WINDOW_SIZE; x++) {
   while (num > 0) {
     if (x==0) {
       num = ez_select(10000);
@@ -263,10 +261,6 @@ int getRecvd(int acks[], int startIndex) {
       bytes = ez_receive();
       from_ip = from_addr.sin_addr.s_addr;
       in_packet = *((packet *) mess_buf);
-     // if (in_packet.index < startIndex) {
-      //  printf("UHOH");
-      //}
-      //printf("%i %i packet type packet index \n", in_packet.packet_type, in_packet.index);
       if (in_packet.packet_type == 1) {
           got_an_ack = 1;
           int z = in_packet.index - startIndex + 1;
@@ -337,7 +331,6 @@ int waitForStartMessage() {
 
 
 void ez_send(char * message, int size) {
-  //printf("sending packet %i size %i\n", ((packet *)message)->index, size);
   sendto_dbg(g_s, message, size, 0, (struct sockaddr *)&g_to_addr, sizeof(g_to_addr));
 }
 
@@ -345,7 +338,6 @@ int getNextPacket(packet* next) {
   next->index = cur_index;
   next->packet_type = 0;
   int bytesRead = fread(&(next->payload), 1, MAX_MESS_LEN-8, s_file);
-  //printf("%i bytes read from file", bytesRead);
   cur_index++;
   return bytesRead;
 }
