@@ -180,13 +180,15 @@ packet * window[WINDOW_SIZE];
       }
     }
     if (count_not_received == 0){
+      for (int x=0; x<=last_pack_index; x++) {
+        total_size_bytes = total_size_bytes + MAX_MESS_LEN - 8;
+        free(window[x]);
+      }
       gettimeofday(&current, NULL);
       double difference = (double)(current.tv_sec - first.tv_sec) + (double)(current.tv_usec - first.tv_usec) / 1000000.0;
       double total = (double)total_size_bytes / 1000000.0;
       printf("Total Megabytes %f. Time %f. Average Transfer Rate: %f\n", total, difference, (total *8.0)/difference);
-      for (int x=0; x<=last_pack_index; x++) {
-        free(window[x]);
-      }
+      
       exit(1);
     } 
 
@@ -196,13 +198,15 @@ packet * window[WINDOW_SIZE];
       no_response_counter++;
       if (no_response_counter > 100) {
         printf("No response for 100 attempts, exiiting");
+        for (int x=0; x<=last_pack_index; x++) {
+          free(window[x]);
+          total_size_bytes + MAX_MESS_LEN - 8;
+         }
         gettimeofday(&current, NULL);
         double difference = (double)(current.tv_sec - first.tv_sec) + (double)(current.tv_usec - first.tv_usec) / 1000000.0;
         double total = (double)total_size_bytes / 1000000.0;
         printf("Total Megabytes %f. Time: %f. Average Rate .\n", total, difference, (total * 8) / difference);
-         for (int x=0; x<=last_pack_index; x++) {
-          free(window[x]);
-         }
+         
         exit(1);
       }
     } else {

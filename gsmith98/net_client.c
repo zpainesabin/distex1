@@ -1,5 +1,5 @@
 #include "net_include.h"
-
+#include <sys/time.h>
 int getNextPacket(char * next);
 FILE * s_file;
 int main(int argc, char * argv[])
@@ -32,6 +32,9 @@ int main(int argc, char * argv[])
 
   s_file = fopen(source_file, "r");
 
+    struct timeval first, last;
+    gettimeofday(&first, NULL);
+    int total_bytes = 0;
     s = socket(AF_INET, SOCK_STREAM, 0); /* Create a socket (TCP) */
     if (s<0) {
         perror("Net_client: socket error");
@@ -74,8 +77,12 @@ int main(int argc, char * argv[])
             exit(1);
         }
         prev_size = mess_len;
+        total_bytes = total_bytes + prev_size;
     }
-    printf("Transfer completed.\n");
+    gettimeofday(&last, NULL);
+    double difference = (double)(last.tv_sec - first.tv_sec) + (double)(last.tv_usec - first.tv_usec) / 1000000.0;
+    double total = total_bytes / 1000000.0;
+    printf("Transfer completed. Total Megabytes: %f. Time: %f. Average Rate (Mbits/sec): %f\n", total, difference, (total*8.0)/difference);
     return 0;
 
 }

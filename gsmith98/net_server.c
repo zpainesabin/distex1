@@ -1,4 +1,5 @@
 #include "net_include.h"
+#include <sys/time.h>
 
 int main()
 {
@@ -44,6 +45,9 @@ int main()
     int is_first = 0;
     int no_reception = 0;
     FILE * fw;
+    struct timeval first, last;
+    gettimeofday(&first, NULL);
+    int total_bytes=0;
     FD_ZERO(&mask);
     FD_ZERO(&dummy_mask);
     FD_SET(s,&mask);
@@ -64,33 +68,38 @@ int main()
                     if (is_first == 0) {
                      is_first = 1;
                      int length;
-                     if (recv(recv_s[j], &length, sizeof(length),0) > 0) {
+                     if (recv(recv_s[j], &length, sizeof(length),0) > 0)                     {
                       int strlen = length - sizeof(length);
                       recv(recv_s[j], mess_buf, strlen, 0);
                       mess_buf[strlen] = '\0';
                       printf("Writing to %s\n", mess_buf);
+                      gettimeofday(&first, NULL);
                       fw = fopen(mess_buf, "w");
-                    }
+                     }
                     }
                     int len = recv(recv_s[j],mess_buf,MAX_MESS_LEN,0);
                     if( len > 0) {
                         no_reception = 0;
                         fwrite(mess_buf, 1, len, fw);
-                    }
-                    else {
-                      no_reception++;
-                      if (no_reception == 10) {
-                        FD_CLR(recv_s[j], &mask);
-                        close(recv_s[j]);
-                        valid[j]=0;
-                        if (fw != NULL) {
-                        fclose(fw);
-                        }
-                        printf("Transfer completed\n");
-                        exit(1);
+                        total_bytes = total_bytes + len;
+                     }
+                      else {
+                        no_reception++;
+                        if (no_reception == 2) {
+                          FD_CLR(recv_s[j], &mask);
+                          close(recv_s[j]);
+                          valid[j]=0;
+                          if (fw != NULL) {
+                            fclose(fw);
+                          }
+                          gettimeofday(&last, NULL);
+                          double difference = (double)(last.tv_sec - first.tv_sec) + (double)(last.tv_usec - first.tv_usec) / 1000000.0;
+                          double total = (double)total_bytes / 1000000.0;
+                          printf("Transfer completed. Total Megabytes %f. Total Time %f. Average Rate (Mbits/sec) %f.\n", total, difference, (total*8.0) / difference);
+                          exit(1);
+                         }
                       }
-                    }
-                }
+                  }
                }
             }
         }
